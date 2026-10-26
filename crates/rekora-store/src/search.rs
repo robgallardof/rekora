@@ -235,22 +235,24 @@ impl Store {
         terms: &[String],
         candidates: &[(String, f64)],
     ) -> Result<HashMap<String, Vec<String>>, StoreError> {
-        let wanted: HashMap<&str, ()> =
-            candidates.iter().map(|(id, _)| (id.as_str(), ())).collect();
+        // Only the (≤ 200) candidates are checked per term. Enumerating every
+        // document that contains a common term instead made search scale with
+        // corpus size rather than with the candidate set.
+        let ids = serde_json::to_string(&candidates.iter().map(|(id, _)| id).collect::<Vec<_>>())
+            .unwrap_or_else(|_| "[]".into());
         let mut stmt = self.conn.prepare_cached(
-            "SELECT m.id FROM memories_fts JOIN memories m ON m.rowid = memories_fts.rowid
-             WHERE memories_fts MATCH ?1 AND m.scope_id = ?2",
+            "SELECT m.id FROM memories m
+             JOIN memories_fts ON memories_fts.rowid = m.rowid
+             WHERE m.id IN (SELECT value FROM json_each(?2))
+               AND memories_fts MATCH ?1 AND +m.scope_id = ?3",
         )?;
         let mut matched: HashMap<String, Vec<String>> = HashMap::new();
         for term in terms {
-            let ids = stmt.query_map(params![fts_literal(term), self.scope_id], |r| {
+            let rows = stmt.query_map(params![fts_literal(term), ids, self.scope_id], |r| {
                 r.get::<_, String>(0)
             })?;
-            for id in ids {
-                let id = id?;
-                if wanted.contains_key(id.as_str()) {
-                    matched.entry(id).or_default().push(term.clone());
-                }
+            for id in rows {
+                matched.entry(id?).or_default().push(term.clone());
             }
         }
         Ok(matched)

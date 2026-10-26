@@ -124,8 +124,9 @@ y hooks). Las decisiones de Rekora son deliberadamente acotadas:
 |:---:|:---:|:---:|:---:|
 | 0.933 | 1.000 | 0.967 | 1.0 |
 
-Se reproduce con `rekora benchmark run --suite relevance`. Las cifras de latencia se publicarán en
-[docs/architecture/PERFORMANCE.md](docs/architecture/PERFORMANCE.md) cuando se corrija un problema de escala conocido.
+Se reproduce con `rekora benchmark run --suite relevance`. Latencia, rendimiento y la máquina donde se midieron están en
+[docs/architecture/PERFORMANCE.md](docs/architecture/PERFORMANCE.md) (búsqueda en caliente p95: 3.6 ms con 1k,
+29 ms con 10k y 182 ms con 100k memorias, sobre un corpus sintético deliberadamente repetitivo).
 
 ---
 
@@ -280,7 +281,8 @@ Cambios: `--status`, `--note`, `--owner`, `--constraint`, `--decision`, `--file`
 - El índice de código es solo de sintaxis: sin referencias, grafos de llamadas ni resolución de tipos.
 - La ocultación de secretos se basa en patrones y puede no detectar formatos raros.
 - Los conteos de tokens son estimaciones conservadoras (bytes UTF-8 / 3), no un tokenizador real.
-- La búsqueda se vuelve lenta con almacenes muy grandes; la corrección está en curso y aún no se publican cifras de latencia.
+- Con 100k memorias la búsqueda en caliente tiene p95 de 182 ms en un corpus sintético de peor caso, por encima
+  de la meta de 100 ms ([PERFORMANCE.md](docs/architecture/PERFORMANCE.md)).
 
 ## 🛠️ Desarrollo
 

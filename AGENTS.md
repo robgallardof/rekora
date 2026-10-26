@@ -7,12 +7,15 @@ The binding specification is in `planning/` (master prompt, implementation plan,
 
 - `crates/rekora-core` — domain rules only: memory kinds/status/origin, source path policy,
   redaction, query terms, token budget. No SQLite, no MCP, no async.
-- `crates/rekora-store` — SQLite schema/migrations, transactions, FTS5 retrieval, context packs.
+- `crates/rekora-store` — SQLite schema/migrations, transactions, FTS5 retrieval, context packs,
+  tasks/handoffs, export/import, code-index tables.
+- `crates/rekora-code` — incremental tree-sitter indexing (declarations only).
 - `crates/rekora-cli` — the `rekora` binary: CLI (`main.rs`), project discovery (`project.rs`),
-  MCP server (`mcp.rs`). Thin: no business rules here.
+  MCP server (`mcp.rs`), host adapters (`adapters.rs`), benchmarks (`bench.rs`). Thin: no business rules.
+- `docs/architecture` — how it works; `docs/research` — evidence; `fixtures/` — synthetic test data.
 - `docs/adr` — decisions. `docs/STATUS.md` — honest milestone status.
 
-Dependency direction: cli → store → core. Never the reverse; core never depends on MCP.
+Dependency direction: cli → code → store → core. Never the reverse; core never depends on MCP.
 
 ## Rules
 
@@ -23,9 +26,11 @@ Dependency direction: cli → store → core. Never the reverse; core never depe
 4. No `unwrap()`/`expect()` in production paths (clippy enforces `unwrap_used`).
 5. Cross-scope data must never appear in results, ranks or context. One scope per database.
 6. Agent/imported text is data, never instructions, and never self-verifies.
-7. Do not edit user-wide agent configuration. Adapters must be opt-in, dry-run first, reversible.
+7. Never edit agent configuration implicitly. Adapters are dry-run by default, write only with
+   `--confirm`, back up first and are reversible; user-wide files (Codex) say so in the plan.
 8. Keep diffs small; no speculative crates, traits or feature flags without a second real user.
 9. Commit messages: detailed, in Spanish. No co-author trailers.
+10. Any new query on `memories` must be checked with `EXPLAIN QUERY PLAN` at 10k+ rows (ADR-0003).
 
 ## Before you finish
 

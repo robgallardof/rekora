@@ -346,8 +346,14 @@ impl Store {
         if needle.len() < 8 || !needle.bytes().all(|b| b.is_ascii_hexdigit() || b == b'-') {
             return Err(StoreError::NotFound(needle.to_owned()));
         }
-        let mut stmt = self.conn.prepare(
-            "SELECT id FROM memories WHERE scope_id = ?1 AND id LIKE ?2 || '%' ESCAPE '\\' LIMIT 2",
+        // A range scan on the UNIQUE(id) index. `LIKE prefix%` looked equivalent
+        // but cannot use the index (case-insensitive LIKE), which made every
+        // `get` a full table scan: search took ~14 s at 100k memories. Ids are
+        // lowercase hex and `-`, all of which sort below `g`.
+        let mut stmt = self.conn.prepare_cached(
+            // `+scope_id` stops the planner from preferring the (scope_id, status)
+            // index, which matches every row because a database holds one scope.
+            "SELECT id FROM memories WHERE id >= ?2 AND id < ?2 || 'g' AND +scope_id = ?1 LIMIT 2",
         )?;
         let ids: Vec<String> = stmt
             .query_map(params![self.scope_id, needle.to_ascii_lowercase()], |r| {
@@ -367,7 +373,7 @@ impl Store {
         let mut record = self.conn.query_row(
             "SELECT id, scope_id, kind, status, origin, content, branch, commit_sha,
                     created_at, updated_at, version, superseded_by
-             FROM memories WHERE scope_id = ?1 AND id = ?2",
+             FROM memories WHERE +scope_id = ?1 AND id = ?2",
             params![self.scope_id, id],
             read_record,
         )?;
@@ -376,7 +382,7 @@ impl Store {
     }
 
     fn sources(&self, id: &str) -> Result<Vec<SourceRef>, StoreError> {
-        let mut stmt = self.conn.prepare(
+        let mut stmt = self.conn.prepare_cached(
             "SELECT path, line, content_hash FROM sources WHERE memory_id = ?1 ORDER BY ord",
         )?;
         let rows = stmt.query_map([id], |r| {
@@ -411,7 +417,7 @@ impl Store {
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let (from, version): (String, i64) = tx.query_row(
-            "SELECT status, version FROM memories WHERE scope_id = ?1 AND id = ?2",
+            "SELECT status, version FROM memories WHERE +scope_id = ?1 AND id = ?2",
             params![self.scope_id, id],
             |r| Ok((r.get(0)?, r.get(1)?)),
         )?;
@@ -503,7 +509,7 @@ impl Store {
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let kind: String = tx.query_row(
-            "SELECT kind FROM memories WHERE scope_id = ?1 AND id = ?2",
+            "SELECT kind FROM memories WHERE +scope_id = ?1 AND id = ?2",
             params![self.scope_id, id],
             |r| r.get(0),
         )?;
@@ -649,4 +655,37 @@ fn now() -> String {
     OffsetDateTime::now_utc()
         .format(&Rfc3339)
         .unwrap_or_else(|_| "1970-01-01T00:00:00Z".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Regression for a measured scaling bug: with one scope per database the
+    /// planner preferred the `(scope_id, status)` index for id lookups, turning
+    /// every `get` into a full scan (search ~14 s at 100k memories). Id
+    /// lookups must use the UNIQUE(id) index.
+    #[test]
+    fn id_lookups_use_the_id_index() {
+        let dir = tempfile::tempdir().unwrap();
+        let (store, _) = Store::init(&dir.path().join("plan.db")).unwrap();
+        let plans = [
+            "SELECT id FROM memories WHERE id >= 'a' AND id < 'a' || 'g' AND +scope_id = 's' LIMIT 2",
+            "SELECT id FROM memories WHERE +scope_id = 's' AND id = 'a'",
+        ];
+        for sql in plans {
+            let mut stmt = store
+                .conn
+                .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
+                .unwrap();
+            let detail: Vec<String> = stmt
+                .query_map([], |r| r.get::<_, String>(3))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap();
+            let plan = detail.join(" | ");
+            assert!(plan.contains("sqlite_autoindex_memories"), "{sql}: {plan}");
+            assert!(!plan.contains("memories_scope_status"), "{sql}: {plan}");
+        }
+    }
 }

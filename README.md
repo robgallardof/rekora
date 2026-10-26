@@ -124,8 +124,9 @@ and written by the authors, so treat it as a regression check, not a benchmark c
 |:---:|:---:|:---:|:---:|
 | 0.933 | 1.000 | 0.967 | 1.0 |
 
-Reproduce with `rekora benchmark run --suite relevance`. Latency numbers will be published in
-[docs/architecture/PERFORMANCE.md](docs/architecture/PERFORMANCE.md) once a known scaling issue is fixed.
+Reproduce with `rekora benchmark run --suite relevance`. Latency, throughput and the machine they were measured on are in
+[docs/architecture/PERFORMANCE.md](docs/architecture/PERFORMANCE.md) (warm search p95: 3.6 ms at 1k, 29 ms at 10k,
+182 ms at 100k memories on a deliberately repetitive synthetic corpus).
 
 ---
 
@@ -280,7 +281,8 @@ Edits: `--status`, `--note`, `--owner`, `--constraint`, `--decision`, `--file`, 
 - The code index is syntax-only: no references, call graphs or type resolution.
 - Secret redaction is pattern-based and will miss unusual formats.
 - Token counts are conservative estimates (UTF-8 bytes / 3), not a real tokenizer.
-- Search slows down on very large stores; a fix is in progress and latency numbers are not published yet.
+- At 100k memories warm search p95 is 182 ms on a worst-case synthetic corpus, above the 100 ms target
+  ([PERFORMANCE.md](docs/architecture/PERFORMANCE.md)).
 
 ## 🛠️ Development
 

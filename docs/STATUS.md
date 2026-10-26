@@ -2,7 +2,73 @@
 
 Format from `planning/REKORA_IMPLEMENTATION_PLAN.md` ("Execution report template").
 
-## Milestone 1 — Stage B vertical slice (PR 1–3 of the plan) — 2026-10-26
+## Milestone 2 — Stages C–F (v0.1 feature-complete) — 2026-10-26
+
+### Implemented since Milestone 1
+
+- **Continuity (Stage D):** durable versioned tasks, `rekora.handoff/1` documents, CLI `task …` / `handoff …`,
+  MCP `task_list`, `task_update`, `handoff_create`, `handoff_resume`; optimistic concurrency everywhere.
+- **Host adapters:** `agent list|install|uninstall` for Claude Code (project `.mcp.json`) and Codex
+  (user `config.toml`), dry-run by default, backup, atomic write, owned-entry-only uninstall.
+- **Export/import (Stage C):** `rekora.export/1`, `--dry-run`, idempotent, imported text untrusted.
+- **Code + Git (Stage E):** `rekora-code` crate (tree-sitter declarations for Rust, Python, JS, TS/TSX, C#),
+  per-branch snapshots, incremental re-index, snapshot-change refusal; linked worktrees share one store and
+  other-branch memories are flagged.
+- **Retrieval:** porter stemming (schema v4); id-index fix (search 100k: ~14 s → 131 ms p50); per-candidate
+  coverage checks; handoff context searched per objective/remaining/constraint.
+- **MCP:** 9 tools with `readOnlyHint`/`destructiveHint`; per-call project discovery; protocol
+  `2025-11-25` (initialize) and `2026-07-28` (`server/discover`, stateless) both tested.
+- **Hardening (Stage F):** `benchmark run --suite core|relevance`, threat model, architecture docs, research
+  notes, ADR-0002/0003, contributing/security/conduct policies, release workflow (draft releases + SHA256SUMS).
+- **Contributed test (another tool in this checkout):** `crates/rekora-store/tests/process_concurrency.rs` —
+  4 writer + 8 reader OS processes contend on one versioned record; asserts version 101, contiguous audit log,
+  25 changes per writer and integrity. Reviewed and kept.
+
+### Commands run (Windows 11, rustc 1.99.1, git 2.55.0)
+
+```text
+cargo fmt --all -- --check                                    -> ok
+cargo clippy --workspace --all-targets -- -D warnings         -> ok
+cargo test --workspace                                        -> 89 passed, 0 failed, 3 ignored
+cargo test -p rekora-cli --test continuity -- --ignored       -> 2 passed (real Claude Code 2.1.310, Codex 0.164.0)
+rekora benchmark run --suite relevance                        -> P@1 0.933, R@5 1.000, MRR 0.967, specificity 1.0
+rekora benchmark run --suite core --size 1000 --size 10000 --size 100000 --queries 300
+                                                              -> see docs/architecture/PERFORMANCE.md
+```
+
+The 3 ignored tests are the two real-host tests (spend tokens; run separately above) and `process_worker`,
+the child entry point that the R12 process test spawns 12 times.
+
+CI (GitHub Actions, Windows/Linux/macOS) passed for commit `8f4aaf1`; later commits are checked by CI on push.
+
+### Scenario coverage
+
+All S01–S20 have automated tests except where noted; map in
+[architecture/TESTING.md](architecture/TESTING.md). Real hosts (S20/R20): **executed and passing** on this
+machine. Not covered: R21 (no conversational capture exists), R23 (no consolidation), R28 (no valid-time queries).
+
+### Performance
+
+Measured; see [architecture/PERFORMANCE.md](architecture/PERFORMANCE.md). The plan's target of warm search
+p95 < 100 ms at 100k memories is **not met** on the synthetic worst-case corpus (182 ms); met at 10k (29 ms).
+
+### Not implemented (deliberately deferred, see research/DECISION_LOG.md)
+
+Embeddings/vector search, graph relations, lifecycle hooks/auto-capture, skill generation, probabilistic
+decision models, sync, GUI, user/team scopes, memory consolidation, Spanish stemming, Kindex head-to-head.
+
+### Known risks
+
+- Relevance corpus written by the same author as the ranking code (risk of overfitting).
+- 100k-memory latency above target; FTS5 candidate scoring dominates.
+- Redaction is pattern-based. Codex adapter edits a user-wide file (only with `--confirm`).
+
+### Next smallest milestone
+
+Independent relevance corpus + Kindex FTS-only comparison; FTS5 candidate-generation optimisation for 100k;
+first tagged release (`v0.1.0`) through the release workflow after reviewing the draft artifacts.
+
+## Milestone 1 (historical) — Stage B vertical slice (PR 1–3 of the plan) — 2026-10-26
 
 ### Implemented
 

@@ -743,3 +743,54 @@ fn r20_real_codex_calls_rekora() {
 fn toml_string(s: &str) -> String {
     format!("'{s}'")
 }
+
+#[test]
+fn r35_protocol_2026_07_28_discover_without_initialize() {
+    let dir = tempfile::tempdir().unwrap();
+    repo_at(dir.path());
+    ok(dir.path(), &["init"]);
+    ok(
+        dir.path(),
+        &["memory", "add", "Invoices are archived for ten years"],
+    );
+    let meta = json!({
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientInfo": { "name": "modern-client", "version": "1.0.0" },
+        "io.modelcontextprotocol/clientCapabilities": {}
+    });
+    let mut child = Command::new(BIN)
+        .current_dir(dir.path())
+        .args(["mcp", "serve", "--stdio"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    let requests = [
+        json!({ "jsonrpc": "2.0", "id": 1, "method": "server/discover", "params": { "_meta": meta } }),
+        json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {
+            "name": "search", "arguments": { "query": "invoice archiving" }, "_meta": meta } }),
+    ];
+    for r in &requests {
+        writeln!(stdin, "{r}").unwrap();
+    }
+    stdin.flush().unwrap();
+    let mut reader = BufReader::new(child.stdout.take().unwrap());
+    let mut responses = Vec::new();
+    for _ in 0..2 {
+        let mut line = String::new();
+        reader.read_line(&mut line).unwrap();
+        responses.push(serde_json::from_str::<Value>(&line).unwrap());
+    }
+    drop(stdin);
+    let _ = child.kill();
+    let _ = child.wait();
+    let discover = responses.iter().find(|r| r["id"] == 1).unwrap();
+    let versions = discover["result"]["supportedVersions"].as_array().unwrap();
+    assert!(versions.contains(&json!("2026-07-28")), "{discover}");
+    assert!(versions.contains(&json!("2025-11-25")));
+    let call = responses.iter().find(|r| r["id"] == 2).unwrap();
+    let text = call["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(text.contains("\"status\":\"found\""), "{call}");
+}
