@@ -104,4 +104,4 @@ for contribution rules and [docs/adr](docs/adr) for decisions. The original spec
 
 ## License
 
-Intended: MIT OR Apache-2.0 (license files to be added before the first public release).
+[MIT](LICENSE).

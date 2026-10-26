@@ -63,4 +63,4 @@ Los adaptadores de host (`rekora agent install ...`) están planeados, no implem
 
 ## Licencia
 
-Prevista: MIT OR Apache-2.0 (los archivos de licencia se agregarán antes del primer release público).
+[MIT](LICENSE).

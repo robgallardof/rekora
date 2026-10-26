@@ -28,7 +28,7 @@ Format from `planning/REKORA_IMPLEMENTATION_PLAN.md` ("Execution report template
 - Stage A research deliverables (`docs/research/*`: competitive matrix, user problems) — **not done**.
 - Import/export (R14 via import, R17 export), handoffs/tasks (S02 handoff, R15/R26 over MCP),
   host adapters (S10, R10, R20, R24, R32), Git/worktree indexing (S04, S05, S16, R25, R36),
-  benchmarks (S19, R19, R34), user-level scope, license files.
+  benchmarks (S19, R19, R34), user-level scope.
 - MCP 2026-07-28 (`server/discover`) path not tested (R35).
 
 ### Commands run (Windows 11, rustc 1.99.1, cargo 1.99.1, git 2.55.0)
@@ -78,5 +78,5 @@ NOT MEASURED.
 ### Next smallest milestone
 
 Stage C: `export`/`import --dry-run` with idempotent re-import (R14, R17), cross-process concurrency
-test (R12 with OS processes), Stage A research docs, threat model, MIT/Apache license files, and the
-first CI run on all three OSes.
+test (R12 with OS processes), Stage A research docs, threat model, and the first CI run on all
+three OSes.
