@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.1.0 — unreleased
+
+Prepared release packaging for Windows, Linux and macOS (x86_64 and Apple Silicon)
+with SHA-256 checksums. The release workflow creates draft artifacts when a tag is pushed.
 
 ### Added
 - Docker image and Compose service with persistent project mounts, custom host ports,
@@ -28,7 +31,7 @@
 - Handoff context searched one concatenated query, which raised the coverage floor and dropped relevant
   constraints; it now searches objective, remaining items and constraints separately.
 
-## 0.1.0 (unreleased first slice)
+### First slice (included above)
 
 - `rekora init`, `status`, `memory add|search|show|verify|dispute|supersede|delete`, `context`, `doctor`,
   `mcp serve --stdio` (tools `search`, `context`, `remember`, `status`).

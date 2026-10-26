@@ -17,7 +17,8 @@ jobs:
           - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, exe: rekora }
           - { os: windows-latest, target: x86_64-pc-windows-msvc, exe: rekora.exe }
           - { os: macos-latest, target: aarch64-apple-darwin, exe: rekora }
-          - { os: macos-13, target: x86_64-apple-darwin, exe: rekora }
+          # Build Intel macOS on the same Apple Silicon runner used by the ARM artifact.
+          - { os: macos-latest, target: x86_64-apple-darwin, exe: rekora }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

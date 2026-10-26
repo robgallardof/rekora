@@ -2,6 +2,17 @@
 
 Format from `planning/REKORA_IMPLEMENTATION_PLAN.md` ("Execution report template").
 
+## Docker follow-up and pending release edits — 2026-10-26
+
+- Re-executed `python scripts/test_docker.py`: passed for real stdio and
+  authenticated HTTP, a custom published port, Compose health, database survival
+  after container recreation and `doctor` on temporary data.
+- Reviewed the pending release changes: build Intel macOS on `macos-latest`
+  using the explicit Intel target, and keep the changelog honestly marked
+  unreleased. No release tag or publication is implied by this commit.
+- Required Rust checks remain passing; the release/tag-triggered workflow itself
+  was **NOT EXECUTED** in this local follow-up.
+
 ## README SVG presentation — 2026-10-26
 
 - Replaced decorative emoji in English/Spanish READMEs with eight original local
