@@ -170,7 +170,7 @@ rekora agent install claude --confirm  # lo escribe (respaldo en .rekora/backups
 rekora agent uninstall codex --confirm
 ```
 
-O apunta cualquier cliente MCP a `rekora mcp serve --stdio` (desde la carpeta del proyecto o con `--project RUTA`).
+O apunta cualquier cliente MCP a `rekora mcp serve --stdio` (desde la carpeta del proyecto o con `--project RUTA`). Probado con las versiones del protocolo MCP `2025-11-25` y `2026-07-28` (sin estado, `server/discover`).
 
 | Herramienta MCP | Qué obtiene el agente |
 |---|---|
