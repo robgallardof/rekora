@@ -2,6 +2,21 @@
 
 Format from `planning/REKORA_IMPLEMENTATION_PLAN.md` ("Execution report template").
 
+## Final host verification — 2026-10-26
+
+- Re-executed both real-host tests with the installed Claude Code and Codex:
+  `cargo test -p rekora-cli --test continuity r20_real_ -- --ignored --nocapture`
+  — 2 passed, 0 failed, 0 ignored. Both returned the seeded memory ID.
+- Hardened these tests to fail explicitly when a host is missing or exits with
+  an error, rather than treating a missing executable as a successful test.
+- After the change: `cargo fmt --all -- --check` and
+  `cargo clippy --workspace --all-targets -- -D warnings` passed;
+  `cargo test --workspace` passed (89 passed, 0 failed, 3 ignored). The two
+  host tests were then executed separately and passed; the remaining ignored
+  helper is exercised by the 12-process concurrency test.
+- This closing verification did not re-run benchmarks, Linux/macOS execution,
+  or release publication: **NOT EXECUTED** in this checkpoint.
+
 ## Milestone 2 — Stages C–F (v0.1 feature-complete) — 2026-10-26
 
 ### Implemented since Milestone 1

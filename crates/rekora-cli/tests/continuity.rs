@@ -682,10 +682,8 @@ const PROMPT: &str = "Use the rekora MCP search tool to find what we decided abo
 #[test]
 #[ignore = "R20: spends model tokens on a real Claude Code install"]
 fn r20_real_claude_code_calls_rekora() {
-    if !on_path("claude") {
-        eprintln!("NOT EXECUTED: claude not on PATH");
-        return;
-    }
+    // An explicitly requested host run must not look green when it never ran.
+    assert!(on_path("claude"), "NOT EXECUTED: claude not on PATH");
     let (dir, id) = seeded_project();
     ok(dir.path(), &["agent", "install", "claude", "--confirm"]);
     let out = Command::new("claude")
@@ -710,6 +708,12 @@ fn r20_real_claude_code_calls_rekora() {
         .unwrap();
     let text = String::from_utf8_lossy(&out.stdout);
     assert!(
+        out.status.success(),
+        "claude failed ({}): {text}\n{}",
+        out.status,
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
         text.contains(&id),
         "claude answer did not contain {id}: {text}"
     );
@@ -718,10 +722,7 @@ fn r20_real_claude_code_calls_rekora() {
 #[test]
 #[ignore = "R20: spends model tokens on a real Codex install"]
 fn r20_real_codex_calls_rekora() {
-    if !on_path("codex") {
-        eprintln!("NOT EXECUTED: codex not on PATH");
-        return;
-    }
+    assert!(on_path("codex"), "NOT EXECUTED: codex not on PATH");
     let (dir, id) = seeded_project();
     // Passed with -c so the user's ~/.codex/config.toml is never touched.
     let command = format!("mcp_servers.rekora.command={}", toml_string(BIN));
@@ -734,6 +735,12 @@ fn r20_real_codex_calls_rekora() {
         .output()
         .unwrap();
     let text = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        out.status.success(),
+        "codex failed ({}): {text}\n{}",
+        out.status,
+        String::from_utf8_lossy(&out.stderr)
+    );
     assert!(
         text.contains(&id),
         "codex answer did not contain {id}: {text}"
