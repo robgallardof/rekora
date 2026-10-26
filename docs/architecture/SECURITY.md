@@ -1,7 +1,7 @@
 # Threat model
 
 Scope: Rekora as installed on a developer machine, used by the developer and by AI agents through the CLI
-and MCP stdio. No network listener exists. Reporting policy: [../../SECURITY.md](../../SECURITY.md).
+and MCP stdio (default), with optional authenticated Streamable HTTP. Reporting policy: [../../SECURITY.md](../../SECURITY.md).
 
 ## Assets
 
@@ -32,7 +32,13 @@ host agent configurations, the integrity of what agents are told is "verified".
 | T9 | Disk corruption / interrupted migration | WAL, per-step migration transactions, pre-migration snapshot, newer-schema refusal, `doctor` integrity + FTS check | `r11_*`, `r30_*` |
 | T10 | Concurrent writers lose updates | `BEGIN IMMEDIATE`, busy timeout, optimistic versions on memories and tasks | `r12_*` (threads and OS processes), `s15_*` |
 | T11 | Indexing executes code | Indexer only reads bytes; never runs builds, package managers or language servers | by construction (`rekora-code`) |
-| T12 | Silent network egress | No network code in the binary; no telemetry | by construction; no automated network-silence test yet |
+| T12 | Silent network egress | No telemetry; HTTP listener starts only with `--http` | no automated network-silence test yet |
+| T13 | Unauthorised HTTP access / DNS rebinding | Required bearer token, loopback default, Host allowlist, reject browser Origins, 1 MiB body limit | `tests/http.rs` and Docker smoke |
+
+HTTP is a single-project shared-token service, not a multi-user deployment. TLS and
+remote access controls belong at a reverse proxy. `/healthz` reports liveness only.
+Container runtime users can inspect environment credentials; project mounts retain
+normal filesystem trust requirements. See [Docker deployment](../DOCKER.md).
 
 ## Known gaps
 

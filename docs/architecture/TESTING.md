@@ -5,6 +5,8 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace                                        # unit, integration, E2E-local, doctests
 cargo test -p rekora-cli --test continuity -- --ignored       # real hosts (spends model tokens)
+docker build -t rekora:local .
+python scripts/test_docker.py                                # actual stdio + HTTP containers and persistence
 rekora benchmark run --suite relevance                        # quality
 rekora benchmark run --suite core                             # latency/throughput
 ```
@@ -15,6 +17,8 @@ rekora benchmark run --suite core                             # latency/throughp
 | Integration | `crates/rekora-store/tests/store.rs`, `crates/rekora-code/tests/index.rs` | SQLite files on disk, real Git repos, real tree-sitter |
 | E2E-local | `crates/rekora-cli/tests/e2e.rs`, `continuity.rs` | compiled binary, Git, MCP child processes over stdio, OS processes in parallel |
 | E2E-host | `continuity.rs` (`#[ignore]`) | installed Claude Code / Codex with credentials |
+| HTTP | `crates/rekora-cli/tests/http.rs` | real TCP listener, MCP child, temp SQLite; legacy sessions and modern stateless requests |
+| Docker | `scripts/test_docker.py` | real Docker image, Compose, custom port, container recreation and persisted SQLite |
 
 Fixtures in [`fixtures/`](../../fixtures) are synthetic and copied into temp Git repos per test.
 

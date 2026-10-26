@@ -1,0 +1,12 @@
+**
+!Cargo.toml
+!Cargo.lock
+!LICENSE
+!rust-toolchain.toml
+!crates/
+!crates/**
+!fixtures/
+!fixtures/benchmark/
+!fixtures/benchmark/relevance.json
+crates/**/target
+crates/**/.rekora

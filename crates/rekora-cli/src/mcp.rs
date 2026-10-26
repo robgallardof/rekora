@@ -1,4 +1,4 @@
-//! MCP stdio server exposing a deliberately small tool surface.
+//! MCP tool surface, served over stdio or the optional HTTP adapter.
 //!
 //! Memory: `search`, `context`, `remember`. Continuity: `task_list`,
 //! `task_update`, `handoff_create`, `handoff_resume`. Code: `symbols`.
@@ -182,7 +182,8 @@ macro_rules! try_tool {
 
 #[tool_router]
 impl RekoraServer {
-    fn new(start: PathBuf) -> Self {
+    /// Binds a tool handler to the project discovery directory.
+    pub(crate) fn new(start: PathBuf) -> Self {
         Self {
             start,
             tool_router: Self::tool_router(),

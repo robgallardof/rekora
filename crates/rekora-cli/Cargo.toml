@@ -1,6 +1,6 @@
 [package]
 name = "rekora-cli"
-description = "The rekora executable: CLI and MCP stdio server."
+description = "The rekora executable: CLI and MCP stdio/HTTP server."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -16,6 +16,7 @@ rekora-core.workspace = true
 rekora-store.workspace = true
 rekora-code.workspace = true
 anyhow.workspace = true
+axum.workspace = true
 clap.workspace = true
 rmcp.workspace = true
 schemars.workspace = true

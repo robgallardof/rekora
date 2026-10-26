@@ -11,6 +11,7 @@
 mod adapters;
 mod bench;
 mod mcp;
+mod mcp_http;
 mod project;
 
 use std::path::{Path, PathBuf};
@@ -353,12 +354,21 @@ struct AgentArgs {
 
 #[derive(Subcommand)]
 enum McpCommand {
-    /// Serve MCP over stdin/stdout. The project is discovered per call from
+    /// Serve MCP over stdio (default) or Streamable HTTP. Discovered per call from
     /// `--project` or the working directory.
     Serve {
-        /// Use the stdio transport (the only transport; flag kept for explicitness).
-        #[arg(long, default_value_t = true)]
+        /// Explicitly use stdio (the default when --http is absent).
+        #[arg(long, conflicts_with = "http")]
         stdio: bool,
+        /// Serve Streamable HTTP at /mcp; requires REKORA_MCP_TOKEN.
+        #[arg(long)]
+        http: bool,
+        /// HTTP bind address and port; use 0.0.0.0:8080 inside Docker.
+        #[arg(long, requires = "http", default_value = "127.0.0.1:8080")]
+        listen: std::net::SocketAddr,
+        /// Additional permitted HTTP Host authority (repeatable).
+        #[arg(long, requires = "http")]
+        allow_host: Vec<String>,
     },
 }
 
@@ -506,8 +516,17 @@ fn run(cli: Cli) -> Result<ExitCode> {
         }
         Command::Agent(cmd) => agent(&start, cmd, out),
         Command::Doctor => doctor(&start, out),
-        Command::Mcp(McpCommand::Serve { .. }) => {
-            mcp::serve(start)?;
+        Command::Mcp(McpCommand::Serve {
+            http,
+            listen,
+            allow_host,
+            ..
+        }) => {
+            if http {
+                mcp_http::serve(start, listen, allow_host)?;
+            } else {
+                mcp::serve(start)?;
+            }
             Ok(ExitCode::SUCCESS)
         }
         Command::Benchmark(BenchmarkCommand::Run {

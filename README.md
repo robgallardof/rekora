@@ -172,6 +172,11 @@ rekora agent uninstall codex --confirm
 
 Or point any MCP client at `rekora mcp serve --stdio` (from the project directory, or with `--project PATH`). Tested with MCP protocol versions `2025-11-25` and `2026-07-28` (stateless, `server/discover`).
 
+**Docker and custom ports:** run MCP over stdio in a container, or use authenticated
+Streamable HTTP with `mcp serve --http --listen 127.0.0.1:9876`. A Dockerfile and
+Compose service include persistent project storage, custom host ports and a healthcheck.
+See [Docker setup and client configuration](docs/DOCKER.md).
+
 | MCP tool | What the agent gets |
 |---|---|
 | `search` | Ranked project memories for a query, or `no_evidence`. |

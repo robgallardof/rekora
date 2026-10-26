@@ -2,6 +2,51 @@
 
 Format from `planning/REKORA_IMPLEMENTATION_PLAN.md` ("Execution report template").
 
+## Docker and HTTP MCP — 2026-10-26
+
+### Implemented
+
+- Multi-stage Dockerfile, non-root runtime, restricted build context, Git and
+  healthcheck dependencies, and included MIT license. Compose supports persistent
+  project mounts, custom host ports/interfaces, runtime UID:GID, restart policy,
+  read-only root filesystem and dropped privileges.
+- Optional `mcp serve --http --listen IP:PORT` with `/mcp` and `/healthz`.
+  Stdio remains the default. HTTP requires `REKORA_MCP_TOKEN` (32+ printable
+  ASCII characters), enforces Host validation and rejects browser Origin headers;
+  `--allow-host` adds explicit deployment hostnames. Request body limit: 1 MiB.
+- Uses rmcp's Streamable HTTP transport, including legacy sessions and modern
+  stateless calls, with graceful SIGINT/SIGTERM shutdown. No global agent
+  configuration is changed by this work.
+- Added real HTTP integration tests, Docker/Compose smoke script and a Linux
+  Docker CI job. Updated deployment instructions, both READMEs and threat model.
+
+### Executed
+
+- `cargo fmt --all -- --check`: passed.
+- `cargo clippy --workspace --all-targets -- -D warnings`: passed.
+- `cargo test --workspace`: 91 passed, 0 failed, 3 ignored (two opt-in real-host
+  tests and the subprocess helper, as described below).
+- `cargo test -p rekora-cli --test continuity r20_real_ -- --ignored --nocapture`:
+  both installed real hosts passed after adding HTTP dependencies.
+- `docker build -t rekora:local .`: passed, Linux image built on Docker Desktop.
+- `python scripts/test_docker.py`: passed against real Linux containers on
+  Docker Desktop: stdio handshake, authenticated HTTP remember, invalid-token
+  refusal, custom published port, Compose health, persisted data after container
+  recreation, and `doctor`. Temporary containers and project were removed.
+- Native HTTP tests passed for legacy sessions, modern `2026-07-28` stateless
+  search, candidate trust, CLI-visible persistence, missing/weak credentials,
+  transport conflicts, custom allowed Host, and hostile Host/Origin rejection.
+
+### Not executed / limits
+
+- New GitHub Actions Docker job, macOS runtime and Linux host UID mapping:
+  **NOT EXECUTED** locally. Linux container build/runtime were executed.
+- Remote TLS reverse proxy, browser/OAuth clients, multiple CPU architectures,
+  HTTP load benchmarks and image registry publication: **NOT EXECUTED**.
+- HTTP serves one mounted project with one shared bearer credential; there is
+  no multi-user or multi-project routing. Health is liveness, not store integrity.
+  Deployment details and persistent mount requirements: [DOCKER.md](DOCKER.md).
+
 ## Final host verification — 2026-10-26
 
 - Re-executed both real-host tests with the installed Claude Code and Codex:

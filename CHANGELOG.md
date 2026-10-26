@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Added
+- Docker image and Compose service with persistent project mounts, custom host ports,
+  non-root runtime and healthcheck; real Docker smoke test.
+- Optional authenticated Streamable HTTP MCP (`--http --listen ADDRESS:PORT`),
+  Host allowlist, browser Origin rejection and bounded HTTP request bodies.
 - Durable tasks and versioned handoff documents (`rekora.handoff/1`): `task create|list|show|update`,
   `handoff create|resume`; MCP `task_list`, `task_update`, `handoff_create`, `handoff_resume`.
 - Export/import (`rekora.export/1`) with `--dry-run`, idempotent re-import and untrusted-origin handling.

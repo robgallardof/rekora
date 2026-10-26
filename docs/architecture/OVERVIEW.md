@@ -1,6 +1,8 @@
 # Architecture overview
 
-Rekora is a modular monolith: one executable, four crates, no daemon, no network.
+Rekora is a modular monolith: one executable, four crates, stdio by default.
+Optional authenticated Streamable HTTP supports Docker and explicit network serving;
+see [deployment](../DOCKER.md). No external service is required for local operation.
 
 ```mermaid
 flowchart LR

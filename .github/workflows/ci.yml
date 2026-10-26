@@ -9,6 +9,15 @@ permissions:
   contents: read
 
 jobs:
+  docker:
+    name: Docker (stdio and HTTP)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t rekora:local .
+      - name: Real container smoke test
+        run: python3 scripts/test_docker.py
   test:
     name: test (${{ matrix.os }})
     strategy:
