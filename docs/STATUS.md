@@ -2,6 +2,22 @@
 
 Format from `planning/REKORA_IMPLEMENTATION_PLAN.md` ("Execution report template").
 
+## README SVG presentation — 2026-10-26
+
+- Replaced decorative emoji in English/Spanish READMEs with eight original local
+  line icons from [readme-builder](https://github.com/robgallardof/readme-builder).
+  Preserved existing banners, numbered section assets, dividers, prose and examples.
+- Cleaned Mermaid labels and repaired navigation fragments containing invisible
+  variation selectors. Heading aliases preserve the former emoji-based link targets.
+- Builder audit of all five README Markdown files: no decorative emoji, broken
+  local references or unresolved local anchors found. Repeat migration: no changes.
+- Required checks executed: `cargo fmt --all -- --check`,
+  `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`:
+  passed; 91 tests passed, 0 failed, 3 ignored (same helper/opt-in hosts as below).
+- Live-host tests, Docker smoke and performance benchmarks were **NOT EXECUTED**
+  for this presentation-only change; earlier execution records remain below.
+- Other uncommitted release-workflow/changelog changes were preserved separately.
+
 ## Docker and HTTP MCP — 2026-10-26
 
 ### Implemented

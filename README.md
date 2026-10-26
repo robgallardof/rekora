@@ -39,21 +39,27 @@ relevant, it says so: `no_evidence`.
 <tr>
 <td width="33%" valign="top">
 
-### 🔗 Grounded
+<a id="-grounded"></a>
+
+### <img src="assets/readme-builder/icons/link.svg" width="20" height="20" alt="" /> Grounded
 Memories cite files (`PATH:LINE`). If a cited file changes, results are flagged **possibly stale** — checked with
 BLAKE3 hashes.
 
 </td>
 <td width="33%" valign="top">
 
-### 🛡️ Trustworthy
+<a id="-trustworthy"></a>
+
+### <img src="assets/readme-builder/icons/shield.svg" width="20" height="20" alt="" /> Trustworthy
 Agent-written memories stay `candidate` until a human verifies them. Context is labelled *data, not
 instructions*. Secrets are redacted before storage.
 
 </td>
 <td width="33%" valign="top">
 
-### 📦 Local & tiny
+<a id="-local--tiny"></a>
+
+### <img src="assets/readme-builder/icons/box.svg" width="20" height="20" alt="" /> Local & tiny
 One executable, offline, no model, no daemon, no telemetry. One SQLite database per project in `.rekora/`,
 git-ignored automatically.
 
@@ -68,24 +74,24 @@ git-ignored automatically.
 
 <p align="center"><img src="assets/readme/divider.svg" alt="" width="80%" /></p>
 
-<a id="️-how-it-works"></a>
+<a id="-how-it-works"></a>
 <p align="center"><img src="assets/readme/sections/en-02.svg" alt="02 · How it works" width="100%" /></p>
 
 ```mermaid
 flowchart LR
-    subgraph Agents["🤖 Agents"]
+    subgraph Agents["Agents"]
         CC["Claude Code"]
         CX["Codex"]
         AN["any MCP client"]
     end
-    subgraph Rekora["🧠 rekora (one binary)"]
+    subgraph Rekora["rekora (one binary)"]
         MCP["MCP server<br/>stdio"]
         CLI["CLI<br/>(human actions)"]
         RANK["Ranking<br/>FTS5 · coverage · freshness"]
         PACK["Context packs<br/>token budget"]
     end
     DB[("SQLite · WAL<br/>.rekora/rekora.db")]
-    SRC["📄 Your files<br/>cited sources"]
+    SRC["Your files<br/>cited sources"]
 
     CC & CX & AN <-->|search · context · remember<br/>tasks · handoffs · symbols| MCP
     CLI -->|verify · dispute · supersede · delete| DB
@@ -113,12 +119,12 @@ Rekora's choices are deliberately narrow:
 
 | | |
 |---|---|
-| 🦀 **One Rust binary** | No runtime, no daemon, no server to host. |
-| 🚫 **No LLM in any write path** | Nothing is summarized or rewritten by a model before it is stored. |
-| ✋ **Agents never self-verify** | Agent text stays `candidate` until a human verifies it. |
-| 🤐 **Strict abstention** | Below the coverage floor the answer is `no_evidence`, not a guess. |
-| 🔁 **Versioned handoffs** | Tasks carry a version; concurrent edits fail with `version_conflict`. |
-| 🌿 **Worktree-aware** | One store per repository, shared across linked worktrees, branch-aware ranking. |
+| <img src="assets/readme-builder/icons/code.svg" width="20" height="20" alt="" /> **One Rust binary** | No runtime, no daemon, no server to host. |
+| <img src="assets/readme-builder/icons/close.svg" width="20" height="20" alt="" /> **No LLM in any write path** | Nothing is summarized or rewritten by a model before it is stored. |
+| <img src="assets/readme-builder/icons/shield.svg" width="20" height="20" alt="" /> **Agents never self-verify** | Agent text stays `candidate` until a human verifies it. |
+| <img src="assets/readme-builder/icons/search.svg" width="20" height="20" alt="" /> **Strict abstention** | Below the coverage floor the answer is `no_evidence`, not a guess. |
+| <img src="assets/readme-builder/icons/repeat.svg" width="20" height="20" alt="" /> **Versioned handoffs** | Tasks carry a version; concurrent edits fail with `version_conflict`. |
+| <img src="assets/readme-builder/icons/branch.svg" width="20" height="20" alt="" /> **Worktree-aware** | One store per repository, shared across linked worktrees, branch-aware ranking. |
 
 **Retrieval quality** on the project's own labelled suite — small (40 memories: 30 answerable, 10 unanswerable)
 and written by the authors, so treat it as a regression check, not a benchmark claim:
@@ -297,7 +303,7 @@ Edits: `--status`, `--note`, `--owner`, `--constraint`, `--decision`, `--file`, 
 - At 100k memories warm search p95 is 182 ms on a worst-case synthetic corpus, above the 100 ms target
   ([PERFORMANCE.md](docs/architecture/PERFORMANCE.md)).
 
-<a id="️-development"></a>
+<a id="-development"></a>
 <p align="center"><img src="assets/readme/sections/en-09.svg" alt="09 · Development" width="100%" /></p>
 
 ```bash
@@ -326,6 +332,8 @@ real Claude Code and Codex. CI runs on Windows, Linux and macOS.
 <p align="center"><img src="assets/readme/sections/en-10.svg" alt="10 · License" width="100%" /></p>
 
 [MIT](LICENSE) © Roberto Gallardo
+
+Build README visuals like these with [readme-builder](https://github.com/robgallardof/readme-builder).
 
 <br/>
 

@@ -11,12 +11,12 @@
 [![Licencia: MIT](https://img.shields.io/badge/licencia-MIT-8b5cf6)](LICENSE)
 [![Rust 1.88+](https://img.shields.io/badge/rust-1.88%2B-orange?logo=rust)](rust-toolchain.toml)
 [![MCP](https://img.shields.io/badge/MCP-stdio%20%C2%B7%20HTTP-06b6d4)](#-úsalo-desde-tu-agente-mcp)
-[![SQLite](https://img.shields.io/badge/SQLite-FTS5%20%C2%B7%20WAL-003B57?logo=sqlite&logoColor=white)](#%EF%B8%8F-cómo-funciona)
+[![SQLite](https://img.shields.io/badge/SQLite-FTS5%20%C2%B7%20WAL-003B57?logo=sqlite&logoColor=white)](#-c%C3%B3mo-funciona)
 [![Estado](https://img.shields.io/badge/estado-desarrollo%20temprano-f59e0b)](docs/STATUS.md)
 
 **Los agentes olvidan. Rekora recuerda — con fuentes.**
 
-[Qué lo hace diferente](#-qué-lo-hace-diferente) · [Inicio rápido](#-inicio-rápido) · [Cómo funciona](#%EF%B8%8F-cómo-funciona) · [MCP](#-úsalo-desde-tu-agente-mcp) ·
+[Qué lo hace diferente](#-qué-lo-hace-diferente) · [Inicio rápido](#-inicio-rápido) · [Cómo funciona](#-c%C3%B3mo-funciona) · [MCP](#-úsalo-desde-tu-agente-mcp) ·
 [Tareas y handoffs](#-tareas-y-handoffs) · [Comandos](#-referencia-de-comandos) · [English](README.md)
 
 </div>
@@ -39,21 +39,27 @@ presupuesto de tokens. Cuando no sabe nada relevante, lo dice: `no_evidence`.
 <tr>
 <td width="33%" valign="top">
 
-### 🔗 Con fuentes
+<a id="-con-fuentes"></a>
+
+### <img src="assets/readme-builder/icons/link.svg" width="20" height="20" alt="" /> Con fuentes
 Las memorias citan archivos (`RUTA:LÍNEA`). Si un archivo citado cambia, el resultado se marca **possibly
 stale** — se comprueba con hashes BLAKE3.
 
 </td>
 <td width="33%" valign="top">
 
-### 🛡️ Confiable
+<a id="-confiable"></a>
+
+### <img src="assets/readme-builder/icons/shield.svg" width="20" height="20" alt="" /> Confiable
 Lo que escribe un agente queda como `candidate` hasta que una persona lo verifica. El contexto se marca como
 *datos, no instrucciones*. Los secretos se ocultan antes de guardarse.
 
 </td>
 <td width="33%" valign="top">
 
-### 📦 Local y ligero
+<a id="-local-y-ligero"></a>
+
+### <img src="assets/readme-builder/icons/box.svg" width="20" height="20" alt="" /> Local y ligero
 Un solo ejecutable, offline, sin modelo, sin daemon y sin telemetría. Una base SQLite por proyecto en `.rekora/`,
 ignorada por Git automáticamente.
 
@@ -68,24 +74,24 @@ ignorada por Git automáticamente.
 
 <p align="center"><img src="assets/readme/divider.svg" alt="" width="80%" /></p>
 
-<a id="️-cómo-funciona"></a>
+<a id="-cómo-funciona"></a>
 <p align="center"><img src="assets/readme/sections/es-02.svg" alt="02 · Cómo funciona" width="100%" /></p>
 
 ```mermaid
 flowchart LR
-    subgraph Agentes["🤖 Agentes"]
+    subgraph Agentes["Agentes"]
         CC["Claude Code"]
         CX["Codex"]
         AN["cualquier cliente MCP"]
     end
-    subgraph Rekora["🧠 rekora (un solo binario)"]
+    subgraph Rekora["rekora (un solo binario)"]
         MCP["Servidor MCP<br/>stdio"]
         CLI["CLI<br/>(acciones humanas)"]
         RANK["Ranking<br/>FTS5 · cobertura · frescura"]
         PACK["Paquetes de contexto<br/>presupuesto de tokens"]
     end
     DB[("SQLite · WAL<br/>.rekora/rekora.db")]
-    SRC["📄 Tus archivos<br/>fuentes citadas"]
+    SRC["Tus archivos<br/>fuentes citadas"]
 
     CC & CX & AN <-->|search · context · remember<br/>tareas · handoffs · símbolos| MCP
     CLI -->|verify · dispute · supersede · delete| DB
@@ -113,12 +119,12 @@ y hooks). Las decisiones de Rekora son deliberadamente acotadas:
 
 | | |
 |---|---|
-| 🦀 **Un solo binario en Rust** | Sin runtime, sin daemon, sin servidor que hospedar. |
-| 🚫 **Ningún LLM al escribir** | Nada lo resume ni lo reescribe un modelo antes de guardarse. |
-| ✋ **Los agentes no se autoverifican** | Lo que escribe un agente queda como `candidate` hasta que una persona lo verifica. |
-| 🤐 **Abstención estricta** | Bajo el umbral de cobertura la respuesta es `no_evidence`, no una suposición. |
-| 🔁 **Handoffs versionados** | Las tareas llevan versión; las ediciones simultáneas fallan con `version_conflict`. |
-| 🌿 **Consciente de worktrees** | Un almacén por repositorio, compartido entre worktrees enlazados, con ranking por rama. |
+| <img src="assets/readme-builder/icons/code.svg" width="20" height="20" alt="" /> **Un solo binario en Rust** | Sin runtime, sin daemon, sin servidor que hospedar. |
+| <img src="assets/readme-builder/icons/close.svg" width="20" height="20" alt="" /> **Ningún LLM al escribir** | Nada lo resume ni lo reescribe un modelo antes de guardarse. |
+| <img src="assets/readme-builder/icons/shield.svg" width="20" height="20" alt="" /> **Los agentes no se autoverifican** | Lo que escribe un agente queda como `candidate` hasta que una persona lo verifica. |
+| <img src="assets/readme-builder/icons/search.svg" width="20" height="20" alt="" /> **Abstención estricta** | Bajo el umbral de cobertura la respuesta es `no_evidence`, no una suposición. |
+| <img src="assets/readme-builder/icons/repeat.svg" width="20" height="20" alt="" /> **Handoffs versionados** | Las tareas llevan versión; las ediciones simultáneas fallan con `version_conflict`. |
+| <img src="assets/readme-builder/icons/branch.svg" width="20" height="20" alt="" /> **Consciente de worktrees** | Un almacén por repositorio, compartido entre worktrees enlazados, con ranking por rama. |
 
 **Calidad de búsqueda** en el conjunto etiquetado propio del proyecto — pequeño (40 memorias: 30 con respuesta y
 10 sin respuesta) y escrito por los autores, así que tómalo como prueba de regresión, no como benchmark:
@@ -297,7 +303,7 @@ Cambios: `--status`, `--note`, `--owner`, `--constraint`, `--decision`, `--file`
 - Con 100k memorias la búsqueda en caliente tiene p95 de 182 ms en un corpus sintético de peor caso, por encima
   de la meta de 100 ms ([PERFORMANCE.md](docs/architecture/PERFORMANCE.md)).
 
-<a id="️-desarrollo"></a>
+<a id="-desarrollo"></a>
 <p align="center"><img src="assets/readme/sections/es-09.svg" alt="09 · Desarrollo" width="100%" /></p>
 
 ```bash
@@ -326,6 +332,8 @@ opcionales contra Claude Code y Codex reales. La CI corre en Windows, Linux y ma
 <p align="center"><img src="assets/readme/sections/es-10.svg" alt="10 · Licencia" width="100%" /></p>
 
 [MIT](LICENSE) © Roberto Gallardo
+
+Crea recursos visuales como estos con [readme-builder](https://github.com/robgallardof/readme-builder).
 
 <br/>
 
