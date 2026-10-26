@@ -495,7 +495,20 @@ fn s01_s02_cli_memory_visible_over_mcp_and_mcp_memory_survives_restart() {
         .map(|t| t["name"].as_str().unwrap())
         .collect();
     names.sort();
-    assert_eq!(names, ["context", "remember", "search", "status"]);
+    assert_eq!(
+        names,
+        [
+            "context",
+            "handoff_create",
+            "handoff_resume",
+            "remember",
+            "search",
+            "status",
+            "symbols",
+            "task_list",
+            "task_update"
+        ]
+    );
 
     let (err, found) = a.call("search", json!({ "query": "order concurrency" }));
     assert!(!err);

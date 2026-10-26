@@ -1,0 +1,28 @@
+[package]
+name = "rekora-code"
+description = "Incremental, syntax-only code indexing for Rekora (tree-sitter)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+rekora-core.workspace = true
+rekora-store.workspace = true
+blake3.workspace = true
+ignore.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tree-sitter.workspace = true
+tree-sitter-c-sharp.workspace = true
+tree-sitter-javascript.workspace = true
+tree-sitter-python.workspace = true
+tree-sitter-rust.workspace = true
+tree-sitter-typescript.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -12,9 +12,12 @@
 //! proceed during writes. SQLite is bundled (a native C dependency) so FTS5 is
 //! always available regardless of the system library.
 
+mod code;
 mod context;
 mod schema;
 mod search;
+mod tasks;
+mod transfer;
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -27,9 +30,14 @@ use serde::Serialize;
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
+pub use code::{FileUpdate, Symbol, SymbolHit};
 pub use context::{ContextPack, PACK_HEADER, PackItem, render_line, short_id};
 pub use schema::{MIGRATIONS, current_version, migrate, snapshot_path};
 pub use search::{Freshness, Hit, ScoreExplain, SearchOptions, SearchOutcome, SearchStatus};
+pub use tasks::{HANDOFF_SCHEMA, Handoff, Task};
+pub use transfer::{
+    EXPORT_FORMAT, ExportFile, ExportedMemory, ImportReport, MAX_IMPORT_BYTES, Rejected,
+};
 
 /// How long a writer waits for another process's write lock before failing.
 pub const BUSY_TIMEOUT: Duration = Duration::from_secs(10);
@@ -73,6 +81,9 @@ pub enum StoreError {
         /// Version currently stored.
         current: i64,
     },
+    /// An import file is not a valid Rekora export.
+    #[error("invalid import: {0}")]
+    InvalidImport(String),
     /// A filesystem error outside SQLite.
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
@@ -90,6 +101,7 @@ impl StoreError {
             Self::Ambiguous(_) => "ambiguous_id",
             Self::InvalidTransition(_) => "invalid_transition",
             Self::VersionConflict { .. } => "version_conflict",
+            Self::InvalidImport(_) => "invalid_import",
             Self::Io(_) => "io_error",
         }
     }

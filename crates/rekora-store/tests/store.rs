@@ -564,3 +564,244 @@ fn r09_injection_text_is_labelled_untrusted_data() {
     assert!(pack.items[0].line.contains("import text"));
     assert!(pack.render().starts_with(rekora_store::PACK_HEADER));
 }
+
+// ------------------------------------------------------------ tasks -------
+
+use rekora_core::task::{TaskPatch, TaskState, TaskStatus};
+
+fn patch_remaining(items: &[&str]) -> TaskPatch {
+    TaskPatch {
+        add: TaskState {
+            remaining: items.iter().map(|s| s.to_string()).collect(),
+            ..TaskState::default()
+        },
+        ..TaskPatch::default()
+    }
+}
+
+#[test]
+fn s15_r26_task_updates_are_versioned_and_never_lose_items() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut store, _) = Store::init(&db(dir.path())).unwrap();
+    let mut initial = patch_remaining(&["migrate schema", "write tests"]);
+    initial.add.constraints = vec!["no new runtime deps".into()];
+    let t = store
+        .create_task(
+            "auth-refactor",
+            "Refactor auth to tokens",
+            &initial,
+            (Some("main".into()), None),
+            "a",
+        )
+        .unwrap();
+    assert_eq!(t.version, 1);
+    assert!(
+        store
+            .create_task(
+                "auth-refactor",
+                "dup",
+                &TaskPatch::default(),
+                (None, None),
+                "a"
+            )
+            .is_err()
+    );
+
+    // Agent A and B both read v1. A wins, B conflicts and sees the current version.
+    let a = TaskPatch {
+        complete: vec!["migrate schema".into()],
+        status: Some(TaskStatus::InProgress),
+        ..TaskPatch::default()
+    };
+    store
+        .update_task("auth-refactor", &a, Some(1), None, "agent-a")
+        .unwrap();
+    let b = TaskPatch {
+        status: Some(TaskStatus::Blocked),
+        ..TaskPatch::default()
+    };
+    let err = store
+        .update_task("auth-refactor", &b, Some(1), None, "agent-b")
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        StoreError::VersionConflict {
+            expected: 1,
+            current: 2
+        }
+    ));
+
+    // B re-reads and retries; a retried identical patch is idempotent for lists.
+    let mut b2 = patch_remaining(&["update docs"]);
+    b2.add.failures = vec!["tried JWT lib X: incompatible with MSRV".into()];
+    store
+        .update_task("auth-refactor", &b2, Some(2), None, "agent-b")
+        .unwrap();
+    let t = store
+        .update_task("auth-refactor", &b2, None, None, "agent-b")
+        .unwrap();
+    assert_eq!(t.version, 4);
+    assert_eq!(t.status, TaskStatus::InProgress);
+    assert_eq!(t.state.constraints, ["no new runtime deps"]);
+    assert_eq!(t.state.remaining, ["write tests", "update docs"]);
+    assert_eq!(t.state.done, ["migrate schema"]);
+    assert_eq!(t.state.failures.len(), 1);
+    assert_eq!(store.history("task:auth-refactor").unwrap().len(), 4);
+}
+
+#[test]
+fn concurrent_task_writers_serialise_without_lost_items() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = db(dir.path());
+    {
+        let (mut store, _) = Store::init(&path).unwrap();
+        store
+            .create_task(
+                "load",
+                "Concurrency probe",
+                &TaskPatch::default(),
+                (None, None),
+                "t",
+            )
+            .unwrap();
+    }
+    let handles: Vec<_> = (0..4)
+        .map(|w| {
+            let path = path.clone();
+            std::thread::spawn(move || {
+                let mut store = Store::open(&path).unwrap();
+                for i in 0..20 {
+                    // Read-modify-write with retry on conflict, like a real agent.
+                    loop {
+                        let v = store.task("load").unwrap().version;
+                        let p = patch_remaining(&[&format!("w{w}-{i}")]);
+                        match store.update_task("load", &p, Some(v), None, "w") {
+                            Ok(_) => break,
+                            Err(StoreError::VersionConflict { .. }) => continue,
+                            Err(e) => panic!("{e}"),
+                        }
+                    }
+                }
+            })
+        })
+        .collect();
+    for h in handles {
+        h.join().unwrap();
+    }
+    let store = Store::open(&path).unwrap();
+    let t = store.task("load").unwrap();
+    assert_eq!(t.state.remaining.len(), 80);
+    assert_eq!(t.version, 81);
+}
+
+#[test]
+fn handoff_carries_task_and_relevant_context() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut store, _) = Store::init(&db(dir.path())).unwrap();
+    add(
+        &mut store,
+        MemoryKind::Constraint,
+        "Token refresh must not exceed 50 ms",
+    );
+    add(&mut store, MemoryKind::Fact, "Frontend uses Tailwind");
+    store
+        .create_task(
+            "tokens",
+            "Implement token refresh",
+            &patch_remaining(&["refresh endpoint"]),
+            (None, None),
+            "a",
+        )
+        .unwrap();
+    let h = store.handoff("tokens", 500, None, None).unwrap();
+    assert_eq!(h.schema, rekora_store::HANDOFF_SCHEMA);
+    assert_eq!(h.task.state.remaining, ["refresh endpoint"]);
+    let text = h.context.render();
+    assert!(text.contains("50 ms"));
+    assert!(!text.contains("Tailwind"));
+    assert!(matches!(
+        store.handoff("missing", 500, None, None),
+        Err(StoreError::NotFound(_))
+    ));
+}
+
+// ---------------------------------------------------------- transfer ------
+
+#[test]
+fn r14_r17_export_import_idempotent_and_untrusted() {
+    let src = tempfile::tempdir().unwrap();
+    let dst = tempfile::tempdir().unwrap();
+    let (mut a, _) = Store::init(&db(src.path())).unwrap();
+    let old = add(&mut a, MemoryKind::Decision, "Use REST for the public API");
+    let new = add(&mut a, MemoryKind::Decision, "Use gRPC for the public API");
+    a.supersede(&old, &new, "t").unwrap();
+    add(&mut a, MemoryKind::Fact, "Deleted soon: scratch note");
+    let scratch = a
+        .search("scratch note", &SearchOptions::default(), None)
+        .unwrap()
+        .hits[0]
+        .memory
+        .id
+        .clone();
+    a.delete(&scratch, "t").unwrap();
+
+    let export = a.export().unwrap();
+    let raw = serde_json::to_string(&export).unwrap();
+    assert!(!raw.contains("scratch note"), "deleted memory exported");
+    assert_eq!(export.memories.len(), 2);
+
+    let (mut b, _) = Store::init(&db(dst.path())).unwrap();
+    let dry = b.import(&export, true, "t").unwrap();
+    assert_eq!((dry.created, dry.skipped_superseded), (1, 1));
+    assert_eq!(b.stats().unwrap().total, 0, "dry run wrote data");
+
+    let first = b.import(&export, false, "t").unwrap();
+    let second = b.import(&export, false, "t").unwrap();
+    assert_eq!(first.created, 1);
+    assert_eq!((second.created, second.duplicates), (0, 1));
+    let hits = b
+        .search("public api grpc", &SearchOptions::default(), None)
+        .unwrap()
+        .hits;
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].memory.origin, Origin::Import);
+    assert_eq!(
+        hits[0].memory.status,
+        MemoryStatus::Candidate,
+        "import arrived verified"
+    );
+}
+
+#[test]
+fn r13_import_rejects_hostile_entries_without_partial_writes() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut store, _) = Store::init(&db(dir.path())).unwrap();
+    let file: rekora_store::ExportFile = serde_json::from_value(serde_json::json!({
+        "format": "rekora.export/1",
+        "scope_id": "x",
+        "exported_at": "2026-01-01T00:00:00Z",
+        "memories": [
+            {"id": "1", "kind": "fact", "status": "verified", "origin": "human", "content": "ok entry about caching"},
+            {"id": "2", "kind": "fact", "status": "verified", "origin": "human", "content": "escape",
+             "sources": [{"path": "../../etc/passwd", "line": null, "content_hash": "x"}]},
+            {"id": "3", "kind": "fact", "status": "verified", "origin": "human", "content": "env",
+             "sources": [{"path": ".env", "line": null, "content_hash": "x"}]},
+            {"id": "4", "kind": "fact", "status": "verified", "origin": "human", "content": "   "}
+        ]
+    }))
+    .unwrap();
+    let report = store.import(&file, false, "t").unwrap();
+    assert_eq!(report.created, 1);
+    let codes: Vec<_> = report.rejected.iter().map(|r| r.code).collect();
+    assert_eq!(
+        codes,
+        ["source_outside_root", "source_excluded", "empty_content"]
+    );
+
+    let mut wrong = file.clone();
+    wrong.format = "something-else".into();
+    assert_eq!(
+        store.import(&wrong, false, "t").unwrap_err().code(),
+        "invalid_import"
+    );
+}

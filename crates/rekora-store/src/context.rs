@@ -110,25 +110,66 @@ impl Store {
         branch: Option<String>,
         policy: Option<&SourcePolicy>,
     ) -> Result<ContextPack, StoreError> {
+        self.context_multi(&[task], budget, branch, policy)
+    }
+
+    /// Like [`Store::context`] but for several independent queries (e.g. a
+    /// task objective and each remaining item). Each query is searched on its
+    /// own — concatenating them would raise the coverage floor until nothing
+    /// qualifies — and hits are merged by id keeping the best score.
+    pub fn context_multi(
+        &self,
+        queries: &[&str],
+        budget: usize,
+        branch: Option<String>,
+        policy: Option<&SourcePolicy>,
+    ) -> Result<ContextPack, StoreError> {
         let options = SearchOptions {
             limit: MAX_LIMIT,
             branch,
         };
-        let outcome = self.search(task, &options, policy)?;
+        let mut status = SearchStatus::NoEvidence;
+        let mut reason = None;
+        let mut hits: Vec<Hit> = Vec::new();
+        for query in queries {
+            let outcome = self.search(query, &options, policy)?;
+            status = match (status, outcome.status) {
+                (SearchStatus::Found, _) | (_, SearchStatus::Found) => SearchStatus::Found,
+                (SearchStatus::LowConfidence, _) | (_, SearchStatus::LowConfidence) => {
+                    SearchStatus::LowConfidence
+                }
+                _ => SearchStatus::NoEvidence,
+            };
+            if reason.is_none() {
+                reason = outcome.reason;
+            }
+            for hit in outcome.hits {
+                match hits.iter_mut().find(|h| h.memory.id == hit.memory.id) {
+                    Some(existing) if existing.score < hit.score => *existing = hit,
+                    Some(_) => {}
+                    None => hits.push(hit),
+                }
+            }
+        }
+        hits.sort_by(|a, b| {
+            b.score
+                .total_cmp(&a.score)
+                .then_with(|| a.memory.id.cmp(&b.memory.id))
+        });
         let mut pack_out = ContextPack {
-            status: outcome.status,
+            status,
             budget,
             used_tokens: 0,
             estimator: "utf8_bytes_div_3_ceil",
             header: String::new(),
             items: Vec::new(),
             omitted: 0,
-            reason: outcome.reason.clone(),
+            reason: if hits.is_empty() { reason } else { None },
         };
-        if outcome.hits.is_empty() {
+        if hits.is_empty() {
             return Ok(pack_out);
         }
-        let lines: Vec<String> = outcome.hits.iter().map(render_line).collect();
+        let lines: Vec<String> = hits.iter().map(render_line).collect();
         // +1 per line for the joining newline, charged as part of the header.
         let overhead = estimate_tokens(PACK_HEADER) + lines.len().div_ceil(3);
         let packed = pack(&lines, budget, overhead);
@@ -146,11 +187,11 @@ impl Store {
             .selected
             .iter()
             .map(|&i| PackItem {
-                id: outcome.hits[i].memory.id.clone(),
+                id: hits[i].memory.id.clone(),
                 tokens: estimate_tokens(&lines[i]),
                 line: lines[i].clone(),
-                possibly_stale: outcome.hits[i].possibly_stale,
-                untrusted_origin: outcome.hits[i].memory.origin.is_untrusted_text(),
+                possibly_stale: hits[i].possibly_stale,
+                untrusted_origin: hits[i].memory.origin.is_untrusted_text(),
             })
             .collect();
         Ok(pack_out)

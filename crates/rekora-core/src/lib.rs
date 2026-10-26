@@ -15,6 +15,7 @@ pub mod memory;
 pub mod query;
 pub mod redact;
 pub mod source;
+pub mod task;
 
 pub use error::CoreError;
 pub use memory::{MemoryKind, MemoryStatus, NewMemory, Origin};

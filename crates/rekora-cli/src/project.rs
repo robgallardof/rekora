@@ -1,8 +1,13 @@
 //! Locating the project scope and reading Git context.
 //!
-//! A project is the directory that contains `.rekora/rekora.db`. `init` places
-//! it at the Git top-level when run inside a repository (so every subdirectory
-//! and the same checkout share one scope), otherwise at the current directory.
+//! A project is the directory that contains `.rekora/rekora.db`. Inside Git,
+//! that is the **main worktree** of the repository, found through
+//! `git rev-parse --git-common-dir`; linked worktrees (`git worktree add`)
+//! share the same store, and memories carry the branch they were recorded on
+//! so branch-specific facts stay distinguishable (S04). Source paths are
+//! resolved against the *current* checkout, since that is where the cited
+//! file is.
+//!
 //! Git is invoked as a plain subprocess with fixed arguments — never through a
 //! shell — and a missing `git` binary simply means "no branch information".
 
@@ -20,8 +25,10 @@ pub const DB_FILE: &str = "rekora.db";
 /// A resolved project scope.
 #[derive(Debug, Clone)]
 pub struct Project {
-    /// Canonical project root.
+    /// Where the store lives (main worktree or plain directory).
     pub root: PathBuf,
+    /// The checkout the command runs in (a linked worktree, or `root`).
+    pub checkout: PathBuf,
 }
 
 impl Project {
@@ -30,22 +37,47 @@ impl Project {
         self.root.join(DATA_DIR).join(DB_FILE)
     }
 
-    /// Where `init` should create a project when started from `cwd`.
-    pub fn for_init(cwd: &Path) -> Result<Self> {
-        let root = git(cwd, &["rev-parse", "--show-toplevel"])
-            .map(PathBuf::from)
-            .unwrap_or_else(|| cwd.to_owned());
-        let root = dunce_canonicalize(&root)?;
-        Ok(Self { root })
+    /// Rekora-owned directory for backups and adapter state.
+    pub fn data_dir(&self) -> PathBuf {
+        self.root.join(DATA_DIR)
     }
 
-    /// Walks up from `start` to the nearest directory containing a store.
+    /// Where `init` should create a project when started from `start`.
+    pub fn for_init(start: &Path) -> Result<Self> {
+        let start = dunce_canonicalize(start)?;
+        let checkout = git(&start, &["rev-parse", "--show-toplevel"])
+            .map(PathBuf::from)
+            .map(|p| dunce_canonicalize(&p))
+            .transpose()?
+            .unwrap_or_else(|| start.clone());
+        let root = main_worktree(&checkout).unwrap_or_else(|| checkout.clone());
+        Ok(Self { root, checkout })
+    }
+
+    /// Finds the store for a command started in `start`: first the
+    /// repository's main worktree, then the nearest ancestor with a store.
     pub fn discover(start: &Path) -> Result<Self> {
         let start = dunce_canonicalize(start)?;
+        let checkout = git(&start, &["rev-parse", "--show-toplevel"])
+            .map(PathBuf::from)
+            .and_then(|p| dunce_canonicalize(&p).ok());
+        if let Some(checkout) = &checkout
+            && let Some(main) = main_worktree(checkout)
+            && main.join(DATA_DIR).join(DB_FILE).is_file()
+        {
+            return Ok(Self {
+                root: main,
+                checkout: checkout.clone(),
+            });
+        }
         for dir in start.ancestors() {
             if dir.join(DATA_DIR).join(DB_FILE).is_file() {
+                let checkout = checkout
+                    .filter(|c| c.starts_with(dir))
+                    .unwrap_or_else(|| dir.to_owned());
                 return Ok(Self {
                     root: dir.to_owned(),
+                    checkout,
                 });
             }
         }
@@ -57,7 +89,7 @@ impl Project {
     /// accident. Leaves an existing file untouched (the user may have opted in
     /// to sharing parts of it).
     pub fn protect_from_git(&self) -> Result<()> {
-        let ignore = self.root.join(DATA_DIR).join(".gitignore");
+        let ignore = self.data_dir().join(".gitignore");
         if !ignore.exists() {
             std::fs::write(&ignore, "# Rekora local data: never commit.\n*\n")
                 .with_context(|| format!("writing {}", ignore.display()))?;
@@ -65,12 +97,38 @@ impl Project {
         Ok(())
     }
 
-    /// Current branch and commit, when the root is a Git checkout with commits.
+    /// Current branch and commit of the checkout, when it is a Git checkout.
     pub fn git_context(&self) -> (Option<String>, Option<String>) {
         let branch =
-            git(&self.root, &["rev-parse", "--abbrev-ref", "HEAD"]).filter(|b| b != "HEAD");
-        let commit = git(&self.root, &["rev-parse", "HEAD"]);
+            git(&self.checkout, &["rev-parse", "--abbrev-ref", "HEAD"]).filter(|b| b != "HEAD");
+        let commit = git(&self.checkout, &["rev-parse", "HEAD"]);
         (branch, commit)
+    }
+
+    /// Snapshot key for the code index: branch, `detached@<sha12>`, or
+    /// `worktree` outside Git.
+    pub fn snapshot(&self) -> String {
+        match self.git_context() {
+            (Some(branch), _) => branch,
+            (None, Some(commit)) => format!("detached@{}", &commit[..commit.len().min(12)]),
+            (None, None) => "worktree".to_owned(),
+        }
+    }
+}
+
+/// Main worktree of the repository containing `checkout`, if any.
+fn main_worktree(checkout: &Path) -> Option<PathBuf> {
+    let common = git(
+        checkout,
+        &["rev-parse", "--path-format=absolute", "--git-common-dir"],
+    )?;
+    let common = PathBuf::from(common);
+    // `<main>/.git` for normal repositories; bare repositories have no main
+    // worktree, in which case each checkout keeps its own store.
+    if common.file_name().is_some_and(|n| n == ".git") {
+        common.parent().and_then(|p| dunce_canonicalize(p).ok())
+    } else {
+        None
     }
 }
 

@@ -134,6 +134,35 @@ impl SourcePolicy {
     }
 }
 
+/// Validates a root-relative path that did not come from [`SourcePolicy::resolve`]
+/// (for example from an import file) without touching the filesystem: `/`
+/// separators only, no absolute paths, drive letters, `.`/`..` or empty
+/// segments, and not on the exclusion list.
+///
+/// ```
+/// use rekora_core::source::check_relative;
+/// assert!(check_relative("docs/adr/0001.md").is_ok());
+/// assert!(check_relative("../outside.md").is_err());
+/// assert!(check_relative("C:/Windows/win.ini").is_err());
+/// ```
+pub fn check_relative(path: &str) -> Result<(), CoreError> {
+    let outside = || CoreError::SourceOutsideRoot(path.to_owned());
+    if path.is_empty() || path.starts_with('/') || path.contains('\\') || path.contains(':') {
+        return Err(outside());
+    }
+    let parts: Vec<String> = path.split('/').map(str::to_owned).collect();
+    if parts.iter().any(|p| p.is_empty() || p == "." || p == "..") {
+        return Err(outside());
+    }
+    if let Some(reason) = excluded(&parts) {
+        return Err(CoreError::SourceExcluded {
+            path: path.to_owned(),
+            reason,
+        });
+    }
+    Ok(())
+}
+
 /// Splits a trailing `:LINE`. A colon followed by non-digits is part of the path
 /// (Windows drive letters), but `file:` with an empty or zero line is rejected.
 fn split_line(spec: &str) -> Result<(&str, Option<u32>), CoreError> {
