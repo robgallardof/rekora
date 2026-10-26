@@ -16,7 +16,7 @@
 
 **Los agentes olvidan. Rekora recuerda — con fuentes.**
 
-[Inicio rápido](#-inicio-rápido) · [Cómo funciona](#%EF%B8%8F-cómo-funciona) · [MCP](#-úsalo-desde-tu-agente-mcp) ·
+[Qué lo hace diferente](#-qué-lo-hace-diferente) · [Inicio rápido](#-inicio-rápido) · [Cómo funciona](#%EF%B8%8F-cómo-funciona) · [MCP](#-úsalo-desde-tu-agente-mcp) ·
 [Tareas y handoffs](#-tareas-y-handoffs) · [Comandos](#-referencia-de-comandos) · [English](README.md)
 
 </div>
@@ -95,10 +95,37 @@ flowchart LR
 | Concepto | Qué significa |
 |---|---|
 | **Memoria** | `fact`, `decision`, `constraint`, `preference`, `known-issue`, `solution` o `procedure`, con fuentes, estado (`candidate`, `verified`, `disputed`) e historial de auditoría que solo crece. |
-| **Búsqueda** | Recuperación por palabras clave (SQLite FTS5) con stopwords en inglés y español, un umbral de cobertura y un puntaje explicable: relevancia × tipo × estado × frescura × rama. |
+| **Búsqueda** | Recuperación por palabras clave (SQLite FTS5 con stemming de Porter) con stopwords en inglés y español, un umbral de cobertura y un puntaje explicable: relevancia × tipo × estado × frescura × rama. |
 | **Paquete de contexto** | Un resumen compacto para una tarea que cabe en un presupuesto de tokens, con lo no confiable y lo posiblemente desactualizado marcado. |
 | **Tarea** | Trabajo que sobrevive entre sesiones: objetivo, restricciones, decisiones, archivos, pruebas, fallos y pendientes, con versionado optimista. |
+| **Worktrees** | Los worktrees enlazados de Git comparten el almacén del worktree principal; las memorias de otra rama se marcan `branch_mismatch`. |
 | **Índice de código** | Declaraciones por sintaxis (funciones, tipos, clases, interfaces, enums, módulos) para Rust, Python, JavaScript, TypeScript/TSX y C#. |
+
+---
+
+## 🎯 Qué lo hace diferente
+
+Otras herramientas ya ofrecen memoria para agentes con procedencia y MCP (por ejemplo Kindex, con memoria en grafo
+y hooks). Las decisiones de Rekora son deliberadamente acotadas:
+
+| | |
+|---|---|
+| 🦀 **Un solo binario en Rust** | Sin runtime, sin daemon, sin servidor que hospedar. |
+| 🚫 **Ningún LLM al escribir** | Nada lo resume ni lo reescribe un modelo antes de guardarse. |
+| ✋ **Los agentes no se autoverifican** | Lo que escribe un agente queda como `candidate` hasta que una persona lo verifica. |
+| 🤐 **Abstención estricta** | Bajo el umbral de cobertura la respuesta es `no_evidence`, no una suposición. |
+| 🔁 **Handoffs versionados** | Las tareas llevan versión; las ediciones simultáneas fallan con `version_conflict`. |
+| 🌿 **Consciente de worktrees** | Un almacén por repositorio, compartido entre worktrees enlazados, con ranking por rama. |
+
+**Calidad de búsqueda** en el conjunto etiquetado propio del proyecto — pequeño (40 memorias: 30 con respuesta y
+10 sin respuesta) y escrito por los autores, así que tómalo como prueba de regresión, no como benchmark:
+
+| P@1 | Recall@5 | MRR | Especificidad sin respuesta |
+|:---:|:---:|:---:|:---:|
+| 0.933 | 1.000 | 0.967 | 1.0 |
+
+Se reproduce con `rekora benchmark run --suite relevance`. Las cifras de latencia se publicarán en
+[docs/architecture/PERFORMANCE.md](docs/architecture/PERFORMANCE.md) cuando se corrija un problema de escala conocido.
 
 ---
 
@@ -158,8 +185,8 @@ O apunta cualquier cliente MCP a `rekora mcp serve --stdio` (desde la carpeta de
 
 > [!NOTE]
 > Verificar, disputar, reemplazar y borrar memorias son acciones **solo de la CLI** (humanas): un agente nunca
-> puede verificar su propio trabajo. El soporte de cada host se prueba contra su formato de configuración; en
-> [docs/STATUS.md](docs/STATUS.md) están las versiones revisadas.
+> puede verificar su propio trabajo. Probado de punta a punta con hosts reales: **Claude Code 2.1.310** y **Codex 0.164.0** llamaron a
+> `search` y obtuvieron la memoria correcta. Otros clientes MCP solo tienen pruebas de contrato; detalles en [docs/STATUS.md](docs/STATUS.md).
 
 ---
 
@@ -248,12 +275,12 @@ Cambios: `--status`, `--note`, `--owner`, `--constraint`, `--decision`, `--file`
 
 ## 🧭 Limitaciones (hoy)
 
-- Solo recuperación por palabras clave (SQLite FTS5): sin sinónimos ni embeddings.
+- Solo recuperación por palabras clave (SQLite FTS5 con stemming): sin sinónimos ni embeddings.
 - Solo alcance de proyecto; sin alcance de usuario ni de equipo.
 - El índice de código es solo de sintaxis: sin referencias, grafos de llamadas ni resolución de tipos.
 - La ocultación de secretos se basa en patrones y puede no detectar formatos raros.
 - Los conteos de tokens son estimaciones conservadoras (bytes UTF-8 / 3), no un tokenizador real.
-- Aún no se publican resultados de benchmarks.
+- La búsqueda se vuelve lenta con almacenes muy grandes; la corrección está en curso y aún no se publican cifras de latencia.
 
 ## 🛠️ Desarrollo
 
@@ -270,8 +297,14 @@ cargo test --workspace
 | `rekora-code` | Índice de código por sintaxis. |
 | `rekora-cli` | El binario `rekora`: CLI, descubrimiento del proyecto, servidor MCP, adaptadores de hosts y benchmarks. |
 
-Las pruebas usan archivos SQLite reales, repositorios Git reales y un proceso MCP real. Lee [AGENTS.md](AGENTS.md)
-antes de contribuir y [docs/adr](docs/adr) para las decisiones de diseño.
+Las pruebas usan archivos SQLite reales, repositorios Git reales y un proceso MCP real, además de dos pruebas
+opcionales contra Claude Code y Codex reales. La CI corre en Windows, Linux y macOS.
+
+**Documentación:** [Estado](docs/STATUS.md) · [Visión general](docs/architecture/OVERVIEW.md) ·
+[Modelo de datos](docs/architecture/DATA_MODEL.md) · [Búsqueda](docs/architecture/RETRIEVAL.md) ·
+[Seguridad](docs/architecture/SECURITY.md) · [Adaptadores](docs/architecture/ADAPTERS.md) ·
+[Solución de problemas](docs/architecture/TROUBLESHOOTING.md) · [ADRs](docs/adr) ·
+[Contribuir](CONTRIBUTING.md) · [Reglas para agentes](AGENTS.md)
 
 ## 📄 Licencia
 
