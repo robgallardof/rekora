@@ -2,6 +2,21 @@
 
 Format from `planning/REKORA_IMPLEMENTATION_PLAN.md` ("Execution report template").
 
+## OpenCode / DeepSeek Harness adapters — 2026-10-26
+
+- Added opt-in project adapters: `rekora agent install opencode|deepseek` (alias `dsh`),
+  dry-run default, backup, idempotence, unrelated-entry preservation and owned-entry removal.
+- OpenCode 1.x schema only; JSONC / 2.x configurations are refused. The official DeepSeek
+  MCP overlay pins the checkout working directory and writes no provider credentials.
+- EXECUTED: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets -- -D warnings`;
+  `cargo test --workspace` (including real Git/temp SQLite/process adapter tests).
+- EXECUTED on Windows: `python scripts/test_agent_hosts.py` with OpenCode 1.19.4 (real MCP
+  connection) and DeepSeek Harness 0.2.1-rc.2 runtime (9 discovered tools, successful `status`
+  against temporary SQLite). Added the same pinned probe to GitHub Actions.
+- NOT EXECUTED: live provider/model inference (no DeepSeek API key), OpenCode 2.x,
+  performance benchmarks and new Docker smoke for this adapter-only change.
+- CI execution after pushing is recorded separately; the workflow's existence is not a passing result.
+
 ## Docker follow-up and pending release edits — 2026-10-26
 
 - Re-executed `python scripts/test_docker.py`: passed for real stdio and

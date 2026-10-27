@@ -1,4 +1,4 @@
-//! Host adapters: register Rekora's MCP server with Claude Code and Codex.
+//! Host adapters for Claude Code, Codex, OpenCode 1.x and DeepSeek Harness.
 //!
 //! Each adapter knows one config file and one entry it owns (`rekora`):
 //!
@@ -41,6 +41,10 @@ pub enum Host {
     Claude,
     /// OpenAI Codex CLI.
     Codex,
+    /// OpenCode 1.x.
+    OpenCode,
+    /// Official DeepSeek Harness.
+    Deepseek,
 }
 
 impl std::str::FromStr for Host {
@@ -49,20 +53,24 @@ impl std::str::FromStr for Host {
         match s.to_ascii_lowercase().as_str() {
             "claude" | "claude-code" => Ok(Self::Claude),
             "codex" => Ok(Self::Codex),
-            other => bail!("unknown agent `{other}`; supported: claude, codex"),
+            "opencode" => Ok(Self::OpenCode),
+            "deepseek" | "dsh" => Ok(Self::Deepseek),
+            other => bail!("unknown agent `{other}`; supported: claude, codex, opencode, deepseek"),
         }
     }
 }
 
 impl Host {
     /// All hosts with an adapter.
-    pub const ALL: [Host; 2] = [Host::Claude, Host::Codex];
+    pub const ALL: [Host; 4] = [Host::Claude, Host::Codex, Host::OpenCode, Host::Deepseek];
 
     /// Stable id.
     pub fn id(self) -> &'static str {
         match self {
             Self::Claude => "claude",
             Self::Codex => "codex",
+            Self::OpenCode => "opencode",
+            Self::Deepseek => "deepseek",
         }
     }
 
@@ -70,6 +78,8 @@ impl Host {
         match self {
             Self::Claude => "claude",
             Self::Codex => "codex",
+            Self::OpenCode => "opencode",
+            Self::Deepseek => "dsh",
         }
     }
 
@@ -77,6 +87,15 @@ impl Host {
     pub fn config_path(self, project: &Project) -> Result<PathBuf> {
         match self {
             Self::Claude => Ok(project.checkout.join(".mcp.json")),
+            Self::OpenCode => {
+                if project.checkout.join("opencode.jsonc").exists() {
+                    bail!(
+                        "opencode.jsonc exists; merge the Rekora entry manually to preserve comments"
+                    );
+                }
+                Ok(project.checkout.join("opencode.json"))
+            }
+            Self::Deepseek => Ok(project.checkout.join(".dsh/rekora.cordis.yml")),
             Self::Codex => {
                 let home = match std::env::var_os("CODEX_HOME") {
                     Some(dir) if !dir.is_empty() => PathBuf::from(dir),
@@ -92,7 +111,7 @@ impl Host {
     /// `project` or `user`: how far the change reaches.
     pub fn scope(self) -> &'static str {
         match self {
-            Self::Claude => "project",
+            Self::Claude | Self::OpenCode | Self::Deepseek => "project",
             Self::Codex => "user",
         }
     }
@@ -114,6 +133,12 @@ impl Host {
     /// Honest support level (see docs/architecture/ADAPTERS.md).
     pub fn support(self) -> &'static str {
         match self {
+            Self::OpenCode => {
+                "implemented; OpenCode 1.x project MCP configuration; see docs/architecture/ADAPTERS.md"
+            }
+            Self::Deepseek => {
+                "implemented; explicit dsh --patch overlay; no model inference claimed"
+            }
             Self::Claude => {
                 "implemented; config contract-tested; connection checked with `claude mcp list` on 2.1.310"
             }
@@ -194,6 +219,9 @@ pub fn plan_install(host: Host, project: &Project, launch: &Launch) -> Result<Pl
     let (after, entry, existed_entry) = match host {
         Host::Claude => json_install(before.as_deref(), launch)?,
         Host::Codex => toml_install(before.as_deref(), launch)?,
+        Host::OpenCode | Host::Deepseek => {
+            project_install(host, before.as_deref(), launch, project)?
+        }
     };
     let action = match (&before, existed_entry) {
         (Some(b), _) if *b == after => "none",
@@ -230,6 +258,7 @@ pub fn plan_uninstall(host: Host, project: &Project) -> Result<Plan> {
     let (after, removed, now_empty) = match host {
         Host::Claude => json_uninstall(text)?,
         Host::Codex => toml_uninstall(text)?,
+        Host::OpenCode | Host::Deepseek => project_uninstall(host, text)?,
     };
     let created_by_us = load_state(project)?
         .installs
@@ -317,6 +346,20 @@ pub fn check(host: Host, project: &Project) -> Result<Option<String>> {
         return Ok(None);
     };
     let command = match host {
+        Host::OpenCode | Host::Deepseek => {
+            let doc: Value = serde_json::from_str(&text)?;
+            if host == Host::OpenCode {
+                doc.pointer("/mcp/rekora/command/0")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+            } else {
+                doc.as_array()
+                    .and_then(|rows| rows.iter().find(|r| r["id"] == "mcp-rekora"))
+                    .and_then(|r| r.pointer("/config/command"))
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+            }
+        }
         Host::Claude => {
             let doc: Value = serde_json::from_str(&text)
                 .map_err(|e| anyhow!("{} is not valid JSON: {e}", path.display()))?;
@@ -346,6 +389,91 @@ pub fn check(host: Host, project: &Project) -> Result<Option<String>> {
         )),
         Some(cmd) => Some(format!("{}: installed ({cmd})", path.display())),
     })
+}
+
+// Project hosts use structured commands; the DeepSeek overlay is JSON-valid YAML.
+fn project_install(
+    host: Host,
+    before: Option<&str>,
+    launch: &Launch,
+    project: &Project,
+) -> Result<(String, Value, bool)> {
+    let mut doc: Value = match before {
+        Some(text) => serde_json::from_str(text)
+            .context("existing host configuration is not valid JSON; not modified")?,
+        None if host == Host::OpenCode => json!({}),
+        None => json!([]),
+    };
+    let (entry, existed) = if host == Host::OpenCode {
+        let root = doc
+            .as_object_mut()
+            .ok_or_else(|| anyhow!("OpenCode config must be an object"))?;
+        let servers = root
+            .entry("mcp")
+            .or_insert_with(|| json!({}))
+            .as_object_mut()
+            .ok_or_else(|| anyhow!("OpenCode mcp must be an object"))?;
+        if servers.contains_key("servers") {
+            bail!("OpenCode 2.x schema is not supported by this adapter");
+        }
+        let mut command = vec![launch.command.clone()];
+        command.extend(launch.args.clone());
+        let entry = json!({"type":"local", "command":command, "enabled":true});
+        let existed = servers.insert(ENTRY.into(), entry.clone()).is_some();
+        (entry, existed)
+    } else {
+        let rows = doc
+            .as_array_mut()
+            .ok_or_else(|| anyhow!("DeepSeek overlay must be an array"))?;
+        let existed = rows.iter().any(|r| r["id"] == "mcp-rekora");
+        rows.retain(|r| r["id"] != "mcp-rekora");
+        let entry = json!({"id":"mcp-rekora", "name":"@deepseek-ai/dsh-mcp-client", "config":{
+            "serverName":ENTRY, "transport":"stdio", "command":launch.command, "args":launch.args,
+            "cwd":project.checkout
+        }});
+        rows.push(entry.clone());
+        (entry, existed)
+    };
+    let after = if let Some(text) =
+        before.filter(|t| serde_json::from_str::<Value>(t).ok().as_ref() == Some(&doc))
+    {
+        text.to_owned()
+    } else {
+        format!("{}\n", serde_json::to_string_pretty(&doc)?)
+    };
+    Ok((after, entry, existed))
+}
+
+fn project_uninstall(host: Host, text: &str) -> Result<(String, bool, bool)> {
+    let mut doc: Value =
+        serde_json::from_str(text).context("invalid host configuration; not modified")?;
+    let (removed, empty) = if host == Host::OpenCode {
+        let root = doc
+            .as_object_mut()
+            .ok_or_else(|| anyhow!("OpenCode config must be an object"))?;
+        let removed = root
+            .get_mut("mcp")
+            .and_then(Value::as_object_mut)
+            .is_some_and(|servers| servers.remove(ENTRY).is_some());
+        let empty = root.len() == 1
+            && root
+                .get("mcp")
+                .and_then(Value::as_object)
+                .is_some_and(|s| s.is_empty());
+        (removed, empty)
+    } else {
+        let rows = doc
+            .as_array_mut()
+            .ok_or_else(|| anyhow!("DeepSeek overlay must be an array"))?;
+        let len = rows.len();
+        rows.retain(|r| r["id"] != "mcp-rekora");
+        (rows.len() != len, rows.is_empty())
+    };
+    Ok((
+        format!("{}\n", serde_json::to_string_pretty(&doc)?),
+        removed,
+        empty,
+    ))
 }
 
 // ---------------------------------------------------------------- JSON ----

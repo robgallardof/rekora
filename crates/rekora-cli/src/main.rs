@@ -102,7 +102,7 @@ enum Command {
     /// Look up declared symbols from the code index.
     #[command(subcommand)]
     Symbols(SymbolsCommand),
-    /// Register Rekora with agent hosts (Claude Code, Codex).
+    /// Register Rekora with agent hosts (Claude Code, Codex, OpenCode, DeepSeek Harness).
     #[command(subcommand)]
     Agent(AgentCommand),
     /// Check the installation, store and adapters; never modifies anything.

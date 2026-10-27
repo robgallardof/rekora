@@ -338,3 +338,17 @@ Build README visuals like these with [readme-builder](https://github.com/robgall
 <br/>
 
 <img src="assets/readme/footer-en.svg" alt="Rekora" width="100%" />
+
+## OpenCode and DeepSeek
+
+```sh
+rekora agent install opencode --confirm
+opencode mcp list
+rekora agent install deepseek --confirm
+dsh web --patch .dsh/rekora.cordis.yml
+```
+
+Omit `--confirm` to preview. Both integrations are project-scoped and reversible with
+`rekora agent uninstall <host> --confirm`. OpenCode 1.x and the official DeepSeek Harness
+have real MCP integration probes; model inference is a separate credentialed test.
+See [host compatibility, versions and tests](docs/architecture/ADAPTERS.md#opencode-and-deepseek-harness).

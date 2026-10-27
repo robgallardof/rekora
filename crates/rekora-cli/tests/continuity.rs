@@ -801,3 +801,54 @@ fn r35_protocol_2026_07_28_discover_without_initialize() {
     let text = call["result"]["content"][0]["text"].as_str().unwrap();
     assert!(text.contains("\"status\":\"found\""), "{call}");
 }
+
+#[test]
+fn project_hosts_install_without_global_configuration_and_remove_only_owned_entries() {
+    for (host, filename, original) in [
+        (
+            "opencode",
+            "opencode.json",
+            r#"{"model":"deepseek/example","mcp":{"other":{"type":"remote","url":"http://localhost:1234/mcp"}}}"#,
+        ),
+        (
+            "deepseek",
+            ".dsh/rekora.cordis.yml",
+            r#"[{"id":"other","name":"example"}]"#,
+        ),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        repo_at(dir.path());
+        ok(dir.path(), &["init"]);
+        let path = dir.path().join(filename);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, original).unwrap();
+        ok(dir.path(), &["agent", "install", host]);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+        ok(dir.path(), &["agent", "install", host, "--confirm"]);
+        let installed = std::fs::read_to_string(&path).unwrap();
+        let doc: Value = serde_json::from_str(&installed).unwrap();
+        if host == "opencode" {
+            assert_eq!(doc["mcp"]["rekora"]["type"], "local");
+            assert!(doc["mcp"]["rekora"]["command"].is_array());
+            assert_eq!(doc["model"], "deepseek/example");
+        } else {
+            assert_eq!(doc[1]["config"]["transport"], "stdio");
+            assert_eq!(
+                std::path::Path::new(doc[1]["config"]["cwd"].as_str().unwrap())
+                    .canonicalize()
+                    .unwrap(),
+                dir.path().canonicalize().unwrap()
+            );
+        }
+        ok(dir.path(), &["agent", "install", host, "--confirm"]);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), installed);
+        ok(dir.path(), &["agent", "uninstall", host, "--confirm"]);
+        assert_eq!(
+            serde_json::from_str::<Value>(&std::fs::read_to_string(&path).unwrap()).unwrap(),
+            serde_json::from_str::<Value>(original).unwrap()
+        );
+        std::fs::write(&path, "malformed").unwrap();
+        err_env(dir.path(), &["agent", "install", host, "--confirm"], &[]);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "malformed");
+    }
+}
