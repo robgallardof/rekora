@@ -2,6 +2,15 @@
 
 Format from `planning/REKORA_IMPLEMENTATION_PLAN.md` ("Execution report template").
 
+## README SVG motion — 2026-10-26
+
+- Added bounded, self-contained decorative CSS motion to locally owned README SVGs.
+  Copy, commands and measurements are unchanged; text/data do not move.
+- EXECUTED: XML parsing and visual/CSS checks; new motion respects reduced motion.
+- EXECUTED: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`,
+  `cargo test --workspace` (existing opt-in host tests remain ignored).
+- NOT EXECUTED for this presentation change: model/provider calls, benchmarks and Docker smoke.
+
 ## OpenCode / DeepSeek Harness adapters — 2026-10-26
 
 - Added opt-in project adapters: `rekora agent install opencode|deepseek` (alias `dsh`),
