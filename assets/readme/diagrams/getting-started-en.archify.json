@@ -1,0 +1,101 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Start using Rekora",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/robgallardof/rekora.git",
+      "revision": "19e644c30e325a2d6bcd816fe9c3b1d03f326f5e"
+    },
+    "output": ".archify/getting-started-en-20261026-194000/diagram.html"
+  },
+  "lanes": [
+    {
+      "id": "author",
+      "label": "Your decisions"
+    },
+    {
+      "id": "local",
+      "label": "Rekora on your machine"
+    }
+  ],
+  "mainPath": [
+    "step0",
+    "step1",
+    "step2",
+    "step3"
+  ],
+  "nodes": [
+    {
+      "id": "step0",
+      "lane": "author",
+      "col": 0,
+      "type": "external",
+      "label": "Build once",
+      "sublabel": "cargo build --release",
+      "sources": [
+        {
+          "path": "Cargo.toml"
+        }
+      ]
+    },
+    {
+      "id": "step1",
+      "lane": "local",
+      "col": 1,
+      "type": "backend",
+      "label": "Initialize the project",
+      "sublabel": "rekora init",
+      "sources": [
+        {
+          "path": "crates/rekora-cli/src/main.rs"
+        }
+      ]
+    },
+    {
+      "id": "step2",
+      "lane": "author",
+      "col": 2,
+      "type": "frontend",
+      "label": "Connect your agent",
+      "sublabel": "Install adapter / review config",
+      "sources": [
+        {
+          "path": "crates/rekora-cli/src/adapters.rs"
+        }
+      ]
+    },
+    {
+      "id": "step3",
+      "lane": "local",
+      "col": 3,
+      "type": "backend",
+      "label": "Ask for context",
+      "sublabel": "Memory with sources",
+      "sources": [
+        {
+          "path": "crates/rekora-cli/src/mcp.rs"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge0",
+      "from": "step0",
+      "to": "step1"
+    },
+    {
+      "id": "edge1",
+      "from": "step1",
+      "to": "step2"
+    },
+    {
+      "id": "edge2",
+      "from": "step2",
+      "to": "step3"
+    }
+  ]
+}

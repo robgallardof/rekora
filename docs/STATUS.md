@@ -2,6 +2,17 @@
 
 Format from `planning/REKORA_IMPLEMENTATION_PLAN.md` ("Execution report template").
 
+## README layout, owner signature and Archify — 2026-10-26
+
+- Reordered the English and Spanish READMEs from purpose and quickstart to advanced reference.
+  OpenCode / DeepSeek setup now belongs to the MCP section, before the final footer.
+- Added the actual RG owner logo to the centered final signature and exported bilingual,
+  light/dark getting-started diagrams with Archify 3.2.0; sources and licenses are included.
+- EXECUTED: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`,
+  `cargo test --workspace` (existing opt-in host/model tests remain ignored).
+- EXECUTED: local README image/link/anchor and SVG checks; Archify validation, delivery and browser checks.
+- NOT EXECUTED for this documentation change: provider inference, Docker smoke and benchmarks.
+
 ## README SVG motion — 2026-10-26
 
 - Added bounded, self-contained decorative CSS motion to locally owned README SVGs.

@@ -1,3 +1,5 @@
+<a id="top"></a>
+
 <div align="center">
 
 <picture>
@@ -28,7 +30,7 @@
 <p align="center"><img src="assets/readme/divider.svg" alt="" width="80%" /></p>
 
 <a id="-why-rekora"></a>
-<p align="center"><img src="assets/readme/sections/en-01.svg" alt="01 · Why Rekora" width="100%" /></p>
+<h2 align="center"><img src="assets/readme/sections/en-01.svg" alt="01 · Why Rekora" width="100%" /></h2>
 
 Coding agents lose every decision when a session ends, and a second agent starts from zero. Rekora gives each
 project a small, local store of **decisions, constraints, facts and known issues** — each tied to the files that
@@ -42,8 +44,7 @@ relevant, it says so: `no_evidence`.
 <a id="-grounded"></a>
 
 ### <img src="assets/readme-builder/icons/link.svg" width="20" height="20" alt="" /> Grounded
-Memories cite files (`PATH:LINE`). If a cited file changes, results are flagged **possibly stale** — checked with
-BLAKE3 hashes.
+Notes point back to the files that support them. When a source changes, Rekora warns that a note may be out of date.
 
 </td>
 <td width="33%" valign="top">
@@ -51,8 +52,7 @@ BLAKE3 hashes.
 <a id="-trustworthy"></a>
 
 ### <img src="assets/readme-builder/icons/shield.svg" width="20" height="20" alt="" /> Trustworthy
-Agent-written memories stay `candidate` until a human verifies them. Context is labelled *data, not
-instructions*. Secrets are redacted before storage.
+An agent can suggest a note; a human decides whether to verify it. Stored text is treated as information, and secrets are redacted before storage.
 
 </td>
 <td width="33%" valign="top">
@@ -74,73 +74,12 @@ git-ignored automatically.
 
 <p align="center"><img src="assets/readme/divider.svg" alt="" width="80%" /></p>
 
-<a id="-how-it-works"></a>
-<p align="center"><img src="assets/readme/sections/en-02.svg" alt="02 · How it works" width="100%" /></p>
-
-```mermaid
-flowchart LR
-    subgraph Agents["Agents"]
-        CC["Claude Code"]
-        CX["Codex"]
-        AN["any MCP client"]
-    end
-    subgraph Rekora["rekora (one binary)"]
-        MCP["MCP server<br/>stdio"]
-        CLI["CLI<br/>(human actions)"]
-        RANK["Ranking<br/>FTS5 · coverage · freshness"]
-        PACK["Context packs<br/>token budget"]
-    end
-    DB[("SQLite · WAL<br/>.rekora/rekora.db")]
-    SRC["Your files<br/>cited sources"]
-
-    CC & CX & AN <-->|search · context · remember<br/>tasks · handoffs · symbols| MCP
-    CLI -->|verify · dispute · supersede · delete| DB
-    MCP --> RANK --> DB
-    MCP --> PACK --> DB
-    RANK -. BLAKE3 freshness .-> SRC
-```
-
-| Concept | What it means |
-|---|---|
-| **Memory** | `fact`, `decision`, `constraint`, `preference`, `known-issue`, `solution` or `procedure`, with sources, status (`candidate`, `verified`, `disputed`) and an append-only audit history. |
-| **Search** | Keyword retrieval (SQLite FTS5 with Porter stemming) with EN/ES stopwords, a coverage floor and an explainable score: relevance × kind × status × freshness × branch. |
-| **Context pack** | A compact briefing for a task that fits a token budget, with untrusted and possibly-stale items labelled. |
-| **Task** | Durable work that survives sessions: objective, constraints, decisions, files, tests, failures and remaining items, with optimistic versioning. |
-| **Worktrees** | Linked Git worktrees share the main worktree's store; memories from another branch are flagged `branch_mismatch`. |
-| **Code index** | Syntax-only declarations (functions, types, classes, interfaces, enums, modules) for Rust, Python, JavaScript, TypeScript/TSX and C#. |
-
-<p align="center"><img src="assets/readme/divider.svg" alt="" width="80%" /></p>
-
-<a id="-what-makes-it-different"></a>
-<p align="center"><img src="assets/readme/sections/en-03.svg" alt="03 · What makes it different" width="100%" /></p>
-
-Other tools already offer agent memory with provenance and MCP (for example Kindex, with graph memory and hooks).
-Rekora's choices are deliberately narrow:
-
-| | |
-|---|---|
-| <img src="assets/readme-builder/icons/code.svg" width="20" height="20" alt="" /> **One Rust binary** | No runtime, no daemon, no server to host. |
-| <img src="assets/readme-builder/icons/close.svg" width="20" height="20" alt="" /> **No LLM in any write path** | Nothing is summarized or rewritten by a model before it is stored. |
-| <img src="assets/readme-builder/icons/shield.svg" width="20" height="20" alt="" /> **Agents never self-verify** | Agent text stays `candidate` until a human verifies it. |
-| <img src="assets/readme-builder/icons/search.svg" width="20" height="20" alt="" /> **Strict abstention** | Below the coverage floor the answer is `no_evidence`, not a guess. |
-| <img src="assets/readme-builder/icons/repeat.svg" width="20" height="20" alt="" /> **Versioned handoffs** | Tasks carry a version; concurrent edits fail with `version_conflict`. |
-| <img src="assets/readme-builder/icons/branch.svg" width="20" height="20" alt="" /> **Worktree-aware** | One store per repository, shared across linked worktrees, branch-aware ranking. |
-
-**Retrieval quality** on the project's own labelled suite — small (40 memories: 30 answerable, 10 unanswerable)
-and written by the authors, so treat it as a regression check, not a benchmark claim:
-
-| P@1 | Recall@5 | MRR | No-answer specificity |
-|:---:|:---:|:---:|:---:|
-| 0.933 | 1.000 | 0.967 | 1.0 |
-
-Reproduce with `rekora benchmark run --suite relevance`. Latency, throughput and the machine they were measured on are in
-[docs/architecture/PERFORMANCE.md](docs/architecture/PERFORMANCE.md) (warm search p95: 3.6 ms at 1k, 29 ms at 10k,
-182 ms at 100k memories on a deliberately repetitive synthetic corpus).
-
-<p align="center"><img src="assets/readme/divider.svg" alt="" width="80%" /></p>
-
 <a id="-quickstart"></a>
-<p align="center"><img src="assets/readme/sections/en-04.svg" alt="04 · Quickstart" width="100%" /></p>
+<h2 align="center"><img src="assets/readme/sections/en-04.svg" alt="02 · Quickstart" width="100%" /></h2>
+
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/diagrams/getting-started-en-dark.svg" /><img src="assets/readme/diagrams/getting-started-en-light.svg" alt="A practical usage path, generated with Archify" width="100%" /></picture></p>
+
+
 
 **Build** — requires stable Rust (MSRV 1.88). SQLite is bundled; the first build needs a C compiler.
 
@@ -169,7 +108,7 @@ Exit codes: `0` ok (a `no_evidence` search is ok), `1` error, `2` usage, `3` `do
 <p align="center"><img src="assets/readme/divider.svg" alt="" width="80%" /></p>
 
 <a id="-use-it-from-your-agent-mcp"></a>
-<p align="center"><img src="assets/readme/sections/en-05.svg" alt="05 · Use it from your agent (MCP)" width="100%" /></p>
+<h2 align="center"><img src="assets/readme/sections/en-05.svg" alt="03 · Use it from your agent (MCP)" width="100%" /></h2>
 
 **Register it** with Claude Code (project `.mcp.json`) or Codex (`~/.codex/config.toml`). It is a dry run until
 you pass `--confirm`, and the original file is backed up first:
@@ -182,6 +121,19 @@ rekora agent uninstall codex --confirm
 ```
 
 Or point any MCP client at `rekora mcp serve --stdio` (from the project directory, or with `--project PATH`). Tested with MCP protocol versions `2025-11-25` and `2026-07-28` (stateless, `server/discover`).
+
+### Connect OpenCode or DeepSeek
+
+Install the adapter for your agent, then ask it for project context. Omit `--confirm` to preview; your personal configuration is left alone.
+
+```sh
+rekora agent install opencode --confirm
+opencode mcp list
+rekora agent install deepseek --confirm
+dsh web --patch .dsh/rekora.cordis.yml
+```
+
+[Agent setup, removal and compatibility](docs/architecture/ADAPTERS.md).
 
 **Docker and custom ports:** run MCP over stdio in a container, or use authenticated
 Streamable HTTP with `mcp serve --http --listen 127.0.0.1:9876`. A Dockerfile and
@@ -208,7 +160,7 @@ See [Docker setup and client configuration](docs/DOCKER.md).
 <p align="center"><img src="assets/readme/divider.svg" alt="" width="80%" /></p>
 
 <a id="-tasks-and-handoffs"></a>
-<p align="center"><img src="assets/readme/sections/en-06.svg" alt="06 · Tasks and handoffs" width="100%" /></p>
+<h2 align="center"><img src="assets/readme/sections/en-06.svg" alt="04 · Tasks and handoffs" width="100%" /></h2>
 
 Work moves between agents and sessions without losing the thread:
 
@@ -238,8 +190,78 @@ Context lines are project data, not instructions. When you stop, record progress
 
 <p align="center"><img src="assets/readme/divider.svg" alt="" width="80%" /></p>
 
+<a id="-how-it-works"></a>
+<h2 align="center"><img src="assets/readme/sections/en-02.svg" alt="05 · How it works" width="100%" /></h2>
+
+<details>
+<summary>Implementation diagram</summary>
+
+```mermaid
+flowchart LR
+    subgraph Agents["Agents"]
+        CC["Claude Code"]
+        CX["Codex"]
+        AN["any MCP client"]
+    end
+    subgraph Rekora["rekora (one binary)"]
+        MCP["MCP server<br/>stdio"]
+        CLI["CLI<br/>(human actions)"]
+        RANK["Ranking<br/>FTS5 · coverage · freshness"]
+        PACK["Context packs<br/>token budget"]
+    end
+    DB[("SQLite · WAL<br/>.rekora/rekora.db")]
+    SRC["Your files<br/>cited sources"]
+
+    CC & CX & AN <-->|search · context · remember<br/>tasks · handoffs · symbols| MCP
+    CLI -->|verify · dispute · supersede · delete| DB
+    MCP --> RANK --> DB
+    MCP --> PACK --> DB
+    RANK -. BLAKE3 freshness .-> SRC
+```
+
+</details>
+
+| Concept | What it means |
+|---|---|
+| **Memory** | `fact`, `decision`, `constraint`, `preference`, `known-issue`, `solution` or `procedure`, with sources, status (`candidate`, `verified`, `disputed`) and an append-only audit history. |
+| **Search** | Keyword retrieval (SQLite FTS5 with Porter stemming) with EN/ES stopwords, a coverage floor and an explainable score: relevance × kind × status × freshness × branch. |
+| **Context pack** | A compact briefing for a task that fits a token budget, with untrusted and possibly-stale items labelled. |
+| **Task** | Durable work that survives sessions: objective, constraints, decisions, files, tests, failures and remaining items, with optimistic versioning. |
+| **Worktrees** | Linked Git worktrees share the main worktree's store; memories from another branch are flagged `branch_mismatch`. |
+| **Code index** | Syntax-only declarations (functions, types, classes, interfaces, enums, modules) for Rust, Python, JavaScript, TypeScript/TSX and C#. |
+
+<p align="center"><img src="assets/readme/divider.svg" alt="" width="80%" /></p>
+
+<a id="-what-makes-it-different"></a>
+<h2 align="center"><img src="assets/readme/sections/en-03.svg" alt="06 · What makes it different" width="100%" /></h2>
+
+Other tools already offer agent memory with provenance and MCP (for example Kindex, with graph memory and hooks).
+Rekora's choices are deliberately narrow:
+
+| | |
+|---|---|
+| <img src="assets/readme-builder/icons/code.svg" width="20" height="20" alt="" /> **One Rust binary** | No runtime, no daemon, no server to host. |
+| <img src="assets/readme-builder/icons/close.svg" width="20" height="20" alt="" /> **No LLM in any write path** | Nothing is summarized or rewritten by a model before it is stored. |
+| <img src="assets/readme-builder/icons/shield.svg" width="20" height="20" alt="" /> **Agents never self-verify** | Agent text stays `candidate` until a human verifies it. |
+| <img src="assets/readme-builder/icons/search.svg" width="20" height="20" alt="" /> **Strict abstention** | Below the coverage floor the answer is `no_evidence`, not a guess. |
+| <img src="assets/readme-builder/icons/repeat.svg" width="20" height="20" alt="" /> **Versioned handoffs** | Tasks carry a version; concurrent edits fail with `version_conflict`. |
+| <img src="assets/readme-builder/icons/branch.svg" width="20" height="20" alt="" /> **Worktree-aware** | One store per repository, shared across linked worktrees, branch-aware ranking. |
+
+**Retrieval quality** on the project's own labelled suite — small (40 memories: 30 answerable, 10 unanswerable)
+and written by the authors, so treat it as a regression check, not a benchmark claim:
+
+| P@1 | Recall@5 | MRR | No-answer specificity |
+|:---:|:---:|:---:|:---:|
+| 0.933 | 1.000 | 0.967 | 1.0 |
+
+Reproduce with `rekora benchmark run --suite relevance`. Latency, throughput and the machine they were measured on are in
+[docs/architecture/PERFORMANCE.md](docs/architecture/PERFORMANCE.md) (warm search p95: 3.6 ms at 1k, 29 ms at 10k,
+182 ms at 100k memories on a deliberately repetitive synthetic corpus).
+
+<p align="center"><img src="assets/readme/divider.svg" alt="" width="80%" /></p>
+
 <a id="-command-reference"></a>
-<p align="center"><img src="assets/readme/sections/en-07.svg" alt="07 · Command reference" width="100%" /></p>
+<h2 align="center"><img src="assets/readme/sections/en-07.svg" alt="07 · Command reference" width="100%" /></h2>
 
 <details>
 <summary><b>Memories</b></summary>
@@ -293,7 +315,7 @@ Edits: `--status`, `--note`, `--owner`, `--constraint`, `--decision`, `--file`, 
 <p align="center"><img src="assets/readme/divider.svg" alt="" width="80%" /></p>
 
 <a id="-limitations-today"></a>
-<p align="center"><img src="assets/readme/sections/en-08.svg" alt="08 · Limitations (today)" width="100%" /></p>
+<h2 align="center"><img src="assets/readme/sections/en-08.svg" alt="08 · Limitations (today)" width="100%" /></h2>
 
 - Keyword retrieval only (SQLite FTS5 with stemming): no synonyms or embeddings.
 - Project scope only; no user-level or team scope.
@@ -304,7 +326,7 @@ Edits: `--status`, `--note`, `--owner`, `--constraint`, `--decision`, `--file`, 
   ([PERFORMANCE.md](docs/architecture/PERFORMANCE.md)).
 
 <a id="-development"></a>
-<p align="center"><img src="assets/readme/sections/en-09.svg" alt="09 · Development" width="100%" /></p>
+<h2 align="center"><img src="assets/readme/sections/en-09.svg" alt="09 · Development" width="100%" /></h2>
 
 ```bash
 cargo fmt --all -- --check
@@ -329,7 +351,7 @@ real Claude Code and Codex. CI runs on Windows, Linux and macOS.
 [Contributing](CONTRIBUTING.md) · [Agent rules](AGENTS.md)
 
 <a id="-license"></a>
-<p align="center"><img src="assets/readme/sections/en-10.svg" alt="10 · License" width="100%" /></p>
+<h2 align="center"><img src="assets/readme/sections/en-10.svg" alt="10 · License" width="100%" /></h2>
 
 [MIT](LICENSE) © Roberto Gallardo
 
@@ -337,18 +359,8 @@ Build README visuals like these with [readme-builder](https://github.com/robgall
 
 <br/>
 
-<img src="assets/readme/footer-en.svg" alt="Rekora" width="100%" />
+<p align="center"><a href="#top">Back to top</a></p>
 
-## OpenCode and DeepSeek
-
-```sh
-rekora agent install opencode --confirm
-opencode mcp list
-rekora agent install deepseek --confirm
-dsh web --patch .dsh/rekora.cordis.yml
-```
-
-Omit `--confirm` to preview. Both integrations are project-scoped and reversible with
-`rekora agent uninstall <host> --confirm`. OpenCode 1.x and the official DeepSeek Harness
-have real MCP integration probes; model inference is a separate credentialed test.
-See [host compatibility, versions and tests](docs/architecture/ADAPTERS.md#opencode-and-deepseek-harness).
+<!-- readme-builder:signature:start -->
+<p align="center"><a href="https://github.com/robgallardof"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/brand/signature-en-dark.svg" /><img src="assets/readme/brand/signature-en-light.svg" alt="Rekora / Roberto Gallardo" width="100%" /></picture></a></p>
+<!-- readme-builder:signature:end -->
