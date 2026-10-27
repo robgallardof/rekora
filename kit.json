@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "theme": "nebula",
+  "assets": "assets/readme-builder/kit",
+  "documents": {"README.md": "en", "README.es.md": "es"},
+  "blocks": [
+    {"id": "nav", "type": "buttons", "items": [
+      {"label": {"en": "Quickstart", "es": "Inicio rápido"}, "href": {"en": "#-quickstart", "es": "#-inicio-rápido"}, "icon": "rocket", "variant": "primary"},
+      {"label": "MCP", "href": {"en": "#-use-it-from-your-agent-mcp", "es": "#-úsalo-desde-tu-agente-mcp"}, "icon": "bot", "small": true},
+      {"label": {"en": "Agent setup", "es": "Instalar en agentes"}, "href": {"en": "#-agent-setup-removal-and-compatibility", "es": "#-instalación-retirada-y-compatibilidad"}, "icon": "settings", "small": true},
+      {"label": {"en": "Handoffs", "es": "Handoffs"}, "href": {"en": "#-tasks-and-handoffs", "es": "#-tareas-y-handoffs"}, "icon": "repeat", "small": true},
+      {"label": {"en": "How it works", "es": "Cómo funciona"}, "href": {"en": "#-how-it-works", "es": "#-cómo-funciona"}, "icon": "layers", "small": true},
+      {"label": {"en": "Commands", "es": "Comandos"}, "href": {"en": "#-command-reference", "es": "#-referencia-de-comandos"}, "icon": "terminal", "small": true},
+      {"label": {"en": "Español", "es": "English"}, "href": {"en": "README.es.md", "es": "README.md"}, "icon": "globe", "small": true}
+    ]},
+    {"id": "why", "type": "cards", "items": [
+      {"title": {"en": "Grounded", "es": "Con fuentes"}, "icon": "link", "kicker": {"en": "Sources", "es": "Fuentes"},
+       "href": "docs/architecture/RETRIEVAL.md",
+       "text": {"en": "Every note cites the files that prove it. When a cited file changes, Rekora flags the note as possibly stale.",
+                "es": "Cada memoria cita los archivos que la prueban. Si un archivo citado cambia, Rekora la marca como posiblemente desactualizada."}},
+      {"title": {"en": "Trustworthy", "es": "Confiable"}, "icon": "shield", "kicker": {"en": "Review", "es": "Revisión"},
+       "href": "docs/architecture/SECURITY.md",
+       "text": {"en": "Agents can only suggest. A person verifies. Stored text is data, never instructions, and secrets are redacted first.",
+                "es": "Los agentes solo sugieren y una persona verifica. Lo guardado son datos, nunca instrucciones, y los secretos se ocultan."}},
+      {"title": {"en": "Local and tiny", "es": "Local y ligero"}, "icon": "box", "kicker": {"en": "Offline", "es": "Offline"},
+       "href": "docs/architecture/OVERVIEW.md", "tags": ["Rust", "SQLite"],
+       "text": {"en": "One executable, no model, no daemon, no telemetry. One SQLite file per project in .rekora/, ignored by Git.",
+                "es": "Un ejecutable, sin modelo, sin daemon y sin telemetría. Un archivo SQLite por proyecto en .rekora/, ignorado por Git."}},
+      {"title": {"en": "Survives a cut-off", "es": "Aguanta un corte"}, "icon": "repeat", "kicker": {"en": "Handoffs", "es": "Handoffs"}, "badge": {"en": "New", "es": "Nuevo"},
+       "href": "docs/architecture/ADAPTERS.md#lifecycle-hooks-automatic-handoff",
+       "text": {"en": "If an agent runs out of credits mid-task, the next one starts with the open tasks, the last turn and the pending changes.",
+                "es": "Si un agente se queda sin créditos a medias, el siguiente arranca con las tareas abiertas, el último turno y los cambios pendientes."}}
+    ]},
+    {"id": "different", "type": "bento", "columns": 3, "cells": [
+      {"icon": "code", "kicker": "Rust", "title": {"en": "One binary", "es": "Un solo binario"}, "text": {"en": "No runtime, no daemon, no server to host.", "es": "Sin runtime, sin daemon, sin servidor que hospedar."}},
+      {"icon": "close", "kicker": {"en": "Writes", "es": "Escritura"}, "title": {"en": "No LLM writes", "es": "Ningún LLM escribe"}, "text": {"en": "Nothing is summarized or rewritten by a model before it is stored.", "es": "Ningún modelo resume ni reescribe nada antes de guardarlo."}},
+      {"icon": "shield", "kicker": {"en": "Trust", "es": "Confianza"}, "title": {"en": "No self-verify", "es": "Sin autoverificar"}, "text": {"en": "Agent text stays candidate until a human verifies it.", "es": "Lo que escribe un agente queda como candidate hasta que alguien lo verifica."}},
+      {"icon": "search", "kicker": {"en": "Search", "es": "Búsqueda"}, "title": {"en": "Strict abstention", "es": "Abstención estricta"}, "text": {"en": "Below the coverage floor the answer is no_evidence, not a guess.", "es": "Bajo el umbral de cobertura responde no_evidence, no una suposición."}},
+      {"icon": "repeat", "kicker": {"en": "Tasks", "es": "Tareas"}, "title": {"en": "Versioned handoffs", "es": "Handoffs versionados"}, "text": {"en": "Concurrent edits fail with version_conflict instead of overwriting.", "es": "Las ediciones simultáneas fallan con version_conflict en vez de pisarse."}},
+      {"icon": "branch", "kicker": "Git", "title": {"en": "Worktree-aware", "es": "Entiende worktrees"}, "text": {"en": "One store per repository, shared by linked worktrees, ranked by branch.", "es": "Un almacén por repositorio, compartido entre worktrees y ordenado por rama."}}
+    ]},
+    {"id": "quality", "type": "stats", "items": [
+      {"value": "0.933", "label": "P@1"},
+      {"value": "1.000", "label": "Recall@5"},
+      {"value": "0.967", "label": "MRR"},
+      {"value": "1.0", "label": {"en": "no-answer specificity", "es": "especificidad sin respuesta"}}
+    ]},
+    {"id": "setup-links", "type": "buttons", "items": [
+      {"label": {"en": "Adapter details", "es": "Detalle de adaptadores"}, "href": "docs/architecture/ADAPTERS.md", "icon": "book", "variant": "primary", "trailing": true},
+      {"label": {"en": "Automatic handoff", "es": "Handoff automático"}, "href": "docs/architecture/ADAPTERS.md#lifecycle-hooks-automatic-handoff", "icon": "repeat", "small": true},
+      {"label": "Docker", "href": "docs/DOCKER.md", "icon": "box", "small": true}
+    ]},
+    {"id": "docs", "type": "buttons", "items": [
+      {"label": {"en": "Status", "es": "Estado"}, "href": "docs/STATUS.md", "icon": "check", "small": true},
+      {"label": {"en": "Overview", "es": "Visión general"}, "href": "docs/architecture/OVERVIEW.md", "icon": "layers", "small": true},
+      {"label": {"en": "Data model", "es": "Modelo de datos"}, "href": "docs/architecture/DATA_MODEL.md", "icon": "database", "small": true},
+      {"label": {"en": "Retrieval", "es": "Búsqueda"}, "href": "docs/architecture/RETRIEVAL.md", "icon": "search", "small": true},
+      {"label": {"en": "Security", "es": "Seguridad"}, "href": "docs/architecture/SECURITY.md", "icon": "shield", "small": true},
+      {"label": {"en": "Adapters", "es": "Adaptadores"}, "href": "docs/architecture/ADAPTERS.md", "icon": "bot", "small": true},
+      {"label": {"en": "Troubleshooting", "es": "Problemas"}, "href": "docs/architecture/TROUBLESHOOTING.md", "icon": "settings", "small": true},
+      {"label": "ADRs", "href": "docs/adr", "icon": "file", "small": true},
+      {"label": {"en": "Contributing", "es": "Contribuir"}, "href": "CONTRIBUTING.md", "icon": "users", "small": true}
+    ]}
+  ]
+}

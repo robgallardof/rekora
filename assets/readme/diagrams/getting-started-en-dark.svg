@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg viewBox="0 0 768 404" data-layout-contract="readable-v2" role="img" lang="en" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="classic" data-quality-profile="showcase" data-node-ui="" style="--flow-cycle: 5.171s; width: 768px; height: 404px; min-width: 0px;" width="768" height="404" xmlns="http://www.w3.org/2000/svg" data-theme="dark"><style>
+<svg viewBox="0 0 790 404" data-layout-contract="readable-v2" role="img" lang="en" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="classic" data-quality-profile="showcase" data-node-ui="" style="--flow-cycle: 5.691s; width: 790px; height: 404px; min-width: 0px;" width="790" height="404" xmlns="http://www.w3.org/2000/svg" data-theme="dark"><style>
 /*
 JetBrains Mono variable WOFF2 subsets from Google Fonts service revision v24.
 These fixed bytes are shared by the viewer and its SVG/raster exports.
@@ -399,64 +399,81 @@ svg[data-preset="editorial"] { --flow-halo-peak: 0.07; --flow-glow-peak: 0.28; -
 }
 @keyframes archify-relay-ripple { 
   0% { r: 2px; opacity: var(--flow-peak, 0.6); }
-  14.504%, 100% { r: 20px; opacity: 0; }
+  13.178%, 100% { r: 20px; opacity: 0; }
 }
 @keyframes archify-relay-comet-0 { 
   0% { stroke-dashoffset: calc(var(--flow-len, 0px) + var(--flow-shift, 0px)); opacity: 0; animation-timing-function: cubic-bezier(0.45, 0.05, 0.35, 1); }
-  2.321% { opacity: var(--flow-peak, 0.9); }
-  21.614% { stroke-dashoffset: var(--flow-shift, 0px); opacity: var(--flow-peak, 0.9); }
-  24.708%, 100% { stroke-dashoffset: var(--flow-shift, 0px); opacity: 0; }
+  2.109% { opacity: var(--flow-peak, 0.9); }
+  19.639% { stroke-dashoffset: var(--flow-shift, 0px); opacity: var(--flow-peak, 0.9); }
+  22.451%, 100% { stroke-dashoffset: var(--flow-shift, 0px); opacity: 0; }
 }
 @keyframes archify-relay-wake-0 { 
   0% { stroke-dashoffset: var(--flow-len, 0px); opacity: var(--flow-peak, 0.3); animation-timing-function: cubic-bezier(0.45, 0.05, 0.35, 1); }
-  21.614% { stroke-dashoffset: 0px; opacity: var(--flow-peak, 0.3); }
-  39.019%, 100% { stroke-dashoffset: 0px; opacity: 0; }
+  19.639% { stroke-dashoffset: 0px; opacity: var(--flow-peak, 0.3); }
+  35.454%, 100% { stroke-dashoffset: 0px; opacity: 0; }
 }
 @keyframes archify-relay-comet-1 { 
   0% { stroke-dashoffset: calc(var(--flow-len, 0px) + var(--flow-shift, 0px)); opacity: 0; animation-timing-function: cubic-bezier(0.45, 0.05, 0.35, 1); }
-  2.321% { opacity: var(--flow-peak, 0.9); }
-  20.165% { stroke-dashoffset: var(--flow-shift, 0px); opacity: var(--flow-peak, 0.9); }
-  23.259%, 100% { stroke-dashoffset: var(--flow-shift, 0px); opacity: 0; }
+  2.109% { opacity: var(--flow-peak, 0.9); }
+  18.322% { stroke-dashoffset: var(--flow-shift, 0px); opacity: var(--flow-peak, 0.9); }
+  21.134%, 100% { stroke-dashoffset: var(--flow-shift, 0px); opacity: 0; }
 }
 @keyframes archify-relay-wake-1 { 
   0% { stroke-dashoffset: var(--flow-len, 0px); opacity: var(--flow-peak, 0.3); animation-timing-function: cubic-bezier(0.45, 0.05, 0.35, 1); }
-  20.165% { stroke-dashoffset: 0px; opacity: var(--flow-peak, 0.3); }
-  37.569%, 100% { stroke-dashoffset: 0px; opacity: 0; }
+  18.322% { stroke-dashoffset: 0px; opacity: var(--flow-peak, 0.3); }
+  34.137%, 100% { stroke-dashoffset: 0px; opacity: 0; }
 }
 @keyframes archify-relay-comet-2 { 
   0% { stroke-dashoffset: calc(var(--flow-len, 0px) + var(--flow-shift, 0px)); opacity: 0; animation-timing-function: cubic-bezier(0.45, 0.05, 0.35, 1); }
-  1.975% { opacity: var(--flow-peak, 0.9); }
-  9.875% { stroke-dashoffset: var(--flow-shift, 0px); opacity: var(--flow-peak, 0.9); }
-  12.969%, 100% { stroke-dashoffset: var(--flow-shift, 0px); opacity: 0; }
+  1.795% { opacity: var(--flow-peak, 0.9); }
+  8.973% { stroke-dashoffset: var(--flow-shift, 0px); opacity: var(--flow-peak, 0.9); }
+  11.784%, 100% { stroke-dashoffset: var(--flow-shift, 0px); opacity: 0; }
 }
 @keyframes archify-relay-wake-2 { 
   0% { stroke-dashoffset: var(--flow-len, 0px); opacity: var(--flow-peak, 0.3); animation-timing-function: cubic-bezier(0.45, 0.05, 0.35, 1); }
-  9.875% { stroke-dashoffset: 0px; opacity: var(--flow-peak, 0.3); }
-  27.28%, 100% { stroke-dashoffset: 0px; opacity: 0; }
+  8.973% { stroke-dashoffset: 0px; opacity: var(--flow-peak, 0.3); }
+  24.787%, 100% { stroke-dashoffset: 0px; opacity: 0; }
+}
+@keyframes archify-relay-comet-3 { 
+  0% { stroke-dashoffset: calc(var(--flow-len, 0px) + var(--flow-shift, 0px)); opacity: 0; animation-timing-function: cubic-bezier(0.45, 0.05, 0.35, 1); }
+  1.476% { opacity: var(--flow-peak, 0.9); }
+  7.38% { stroke-dashoffset: var(--flow-shift, 0px); opacity: var(--flow-peak, 0.9); }
+  10.191%, 100% { stroke-dashoffset: var(--flow-shift, 0px); opacity: 0; }
+}
+@keyframes archify-relay-wake-3 { 
+  0% { stroke-dashoffset: var(--flow-len, 0px); opacity: var(--flow-peak, 0.3); animation-timing-function: cubic-bezier(0.45, 0.05, 0.35, 1); }
+  7.38% { stroke-dashoffset: 0px; opacity: var(--flow-peak, 0.3); }
+  23.194%, 100% { stroke-dashoffset: 0px; opacity: 0; }
 }
 @keyframes archify-relay-node-0 { 
   0%, 100% { filter: var(--ambient-node-base-filter, none); }
   0% { filter: var(--ambient-node-base-filter, none); }
-  2.321%, 8.122% { filter: var(--ambient-node-base-filter,) drop-shadow(0 0 10px var(--arrow-emphasis)); }
-  23.206% { filter: var(--ambient-node-base-filter, none); }
+  2.109%, 7.38% { filter: var(--ambient-node-base-filter,) drop-shadow(0 0 10px var(--arrow-emphasis)); }
+  21.085% { filter: var(--ambient-node-base-filter, none); }
 }
 @keyframes archify-relay-node-1 { 
   0%, 100% { filter: var(--ambient-node-base-filter, none); }
-  21.614% { filter: var(--ambient-node-base-filter, none); }
-  23.935%, 29.736% { filter: var(--ambient-node-base-filter,) drop-shadow(0 0 10px var(--arrow-emphasis)); }
-  44.82% { filter: var(--ambient-node-base-filter, none); }
+  19.639% { filter: var(--ambient-node-base-filter, none); }
+  21.748%, 27.019% { filter: var(--ambient-node-base-filter,) drop-shadow(0 0 10px var(--arrow-emphasis)); }
+  40.725% { filter: var(--ambient-node-base-filter, none); }
 }
 @keyframes archify-relay-node-2 { 
   0%, 100% { filter: var(--ambient-node-base-filter, none); }
-  43.713% { filter: var(--ambient-node-base-filter, none); }
-  46.034%, 51.835% { filter: var(--ambient-node-base-filter,) drop-shadow(0 0 10px var(--arrow-emphasis)); }
-  66.919% { filter: var(--ambient-node-base-filter, none); }
+  39.719% { filter: var(--ambient-node-base-filter, none); }
+  41.828%, 47.099% { filter: var(--ambient-node-base-filter,) drop-shadow(0 0 10px var(--arrow-emphasis)); }
+  60.805% { filter: var(--ambient-node-base-filter, none); }
 }
 @keyframes archify-relay-node-3 { 
   0%, 100% { filter: var(--ambient-node-base-filter, none); }
-  55.522% { filter: var(--ambient-node-base-filter, none); }
-  57.843%, 63.644% { filter: var(--ambient-node-base-filter,) drop-shadow(0 0 10px var(--arrow-emphasis)); }
-  78.728% { filter: var(--ambient-node-base-filter, none); }
+  50.449% { filter: var(--ambient-node-base-filter, none); }
+  52.558%, 57.829% { filter: var(--ambient-node-base-filter,) drop-shadow(0 0 10px var(--arrow-emphasis)); }
+  71.535% { filter: var(--ambient-node-base-filter, none); }
+}
+@keyframes archify-relay-node-4 { 
+  0%, 100% { filter: var(--ambient-node-base-filter, none); }
+  59.586% { filter: var(--ambient-node-base-filter, none); }
+  61.695%, 66.966% { filter: var(--ambient-node-base-filter,) drop-shadow(0 0 10px var(--arrow-emphasis)); }
+  80.672% { filter: var(--ambient-node-base-filter, none); }
 }
 svg[data-node-ui] [data-node-id] &gt; rect:not(.c-mask) { stroke-width: 1.25px; }
 :is([data-theme="dark"] svg[data-node-ui], svg[data-node-ui][data-theme="dark"]) [data-node-id] &gt; rect:not(.c-mask).c-frontend { fill: color-mix(in srgb, var(--frontend-stroke) 13%, var(--mask)); stroke: color-mix(in srgb, var(--frontend-stroke) 72%, var(--mask)); }
@@ -478,7 +495,7 @@ svg[data-node-ui] g[data-edge-from] &gt; rect.c-mask { rx: 7px; stroke: var(--la
 svg[data-node-ui][data-preset="blueprint"] :is([data-graph-role="structural-frame-label-mask"], g[data-edge-from] &gt; rect.c-mask, .phase-chip) { rx: 2px; }
 svg[data-node-ui][data-preset="editorial"] :is([data-graph-role="structural-frame-label-mask"], g[data-edge-from] &gt; rect.c-mask, .phase-chip) { rx: 3px; }
 :root, svg { --bg: #020617; --grid: #1e293b; --canvas-dot: rgba(148, 163, 184, 0.16); --text: #ffffff; --text-muted: #94a3b8; --text-dim: #475569; --text-faint: #7d8da1; --panel: rgba(15, 23, 42, 0.5); --panel-border: #1e293b; --lane-fill: rgba(15, 23, 42, 0.22); --lane-stroke: #334155; --arrow: #94a3b8; --arrow-emphasis: #34d399; --mask: #0f172a; --frontend-fill: rgba(8, 51, 68, 0.4); --frontend-stroke: #22d3ee; --backend-fill: rgba(6, 78, 59, 0.4); --backend-stroke: #34d399; --database-fill: rgba(76, 29, 149, 0.4); --database-stroke: #a78bfa; --cloud-fill: rgba(120, 53, 15, 0.3); --cloud-stroke: #fbbf24; --security-fill: rgba(136, 19, 55, 0.4); --security-stroke: #fb7185; --messagebus-fill: rgba(251, 146, 60, 0.3); --messagebus-stroke: #fb923c; --external-fill: rgba(30, 41, 59, 0.5); --external-stroke: #94a3b8; --toolbar-bg: rgba(15, 23, 42, 0.8); --toolbar-border: #334155; --toolbar-text: #e2e8f0; --toolbar-hover: rgba(15, 23, 42, 0.95); --toolbar-menu-bg: #0f172a; --flow-cycle: ; --flow-halo-peak: ; --flow-glow-peak: ; --flow-tail-peak: ; --flow-head-peak: ; --flow-wake-peak: ; --flow-ripple-peak: ; --flow-peak: ; }
-</style><rect x="0" y="0" width="768" height="404" fill="#020617"/><metadata id="archify-software-notices">NOTICE
+</style><rect x="0" y="0" width="790" height="404" fill="#020617"/><metadata id="archify-software-notices">NOTICE
 Archify
 Copyright (c) 2026 tt-a1i (Archify)
 Copyright (c) 2025 Cocoon AI
@@ -859,10 +876,10 @@ been cleared for every commercial, promotional, or redistributive use.</metadata
         <rect width="100%" height="100%" fill="url(#grid)"/>
 
         <!-- Swimlanes -->
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-0" x="40" y="52" width="712" height="104" rx="10" class="c-lane" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-0" x="40" y="52" width="734" height="104" rx="10" class="c-lane" stroke-width="1"/>
         <text x="54" y="74" class="t-muted" font-size="10" font-weight="600">01 / Your decisions</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-1" x="40" y="176" width="712" height="104" rx="10" class="c-lane" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-1" x="40" y="176" width="734" height="104" rx="10" class="c-lane" stroke-width="1"/>
         <text x="54" y="198" class="t-muted" font-size="10" font-weight="600">02 / Rekora on your machine</text>
 
         <!-- Phase headers -->
@@ -875,6 +892,7 @@ been cleared for every commercial, promotional, or redistributive use.</metadata
         <path data-edge-from="step0" data-edge-to="step1" data-edge-key="0" data-edge-id="edge0" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="94,145;94,166;302,166;302,243;286,243" d="M 94 145 L 94 158 Q 94 166 102 166 L 294 166 Q 302 166 302 174 L 302 235 Q 302 243 294 243 L 286 243" class="a-default" data-animate="edge" style="--step: 0;" stroke-width="1.4" marker-end="url(#arrowhead)"/>
         <path data-edge-from="step1" data-edge-to="step2" data-edge-key="1" data-edge-id="edge1" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="214,269;214,296;334,296;334,145" d="M 214 269 L 214 288 Q 214 296 222 296 L 326 296 Q 334 296 334 288 L 334 145" class="a-default" data-animate="edge" style="--step: 1;" stroke-width="1.4" marker-end="url(#arrowhead)"/>
         <path data-edge-from="step2" data-edge-to="step3" data-edge-key="2" data-edge-id="edge2" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="358,145;358,243;406,243" d="M 358 145 L 358 235 Q 358 243 366 243 L 406 243" class="a-default" data-animate="edge" style="--step: 2;" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="step3" data-edge-to="step4" data-edge-key="3" data-edge-id="edge3" data-composition-routing="workflow-v2-auto" data-edge-role="" data-composition-points="502,243;534,243" d="M 502 243 L 534 243" class="a-default" data-animate="edge" style="--step: 3;" stroke-width="1.4" marker-end="url(#arrowhead)"/>
 
         <!-- Nodes -->
         <g id="node-step0" data-node-id="step0" data-node-label="Build once" tabindex="0" role="button" aria-label="Focus Build once, cargo build --release, Your decisions" aria-pressed="false" data-node-kind="external" data-node-sublabel="cargo build --release" data-node-context="Your decisions">
@@ -889,8 +907,8 @@ been cleared for every commercial, promotional, or redistributive use.</metadata
           <text x="94" y="140.5" class="t-muted" font-size="6.6" text-anchor="middle">cargo build --release</text>
         </g>
 
-        <g id="node-step2" data-node-id="step2" data-node-label="Connect your agent" tabindex="0" role="button" aria-label="Focus Connect your agent, Install adapter / review config, Your decisions" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="Install adapter / review config" data-node-context="Your decisions">
-          <title>Connect your agent · Install adapter / review config · Your decisions</title>
+        <g id="node-step2" data-node-id="step2" data-node-label="Connect your agent" tabindex="0" role="button" aria-label="Focus Connect your agent, MCP + hooks, dry run first, Your decisions" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="MCP + hooks, dry run first" data-node-context="Your decisions">
+          <title>Connect your agent · MCP + hooks, dry run first · Your decisions</title>
           <rect x="274" y="93" width="120" height="52" rx="8" class="c-mask"/>
           <rect x="274" y="93" width="120" height="52" rx="8" class="c-frontend" data-animate="node" style="--step: 2; --flow-node-name: archify-relay-node-2;" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(280 99) scale(0.6875)">
@@ -900,7 +918,7 @@ been cleared for every commercial, promotional, or redistributive use.</metadata
             <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
           </g>
           <text data-node-label="" x="334" y="126.4" class="t-primary" font-size="10.3" font-weight="600" text-anchor="middle">Connect your agent</text>
-          <text x="334" y="138.7" class="t-muted" font-size="6" text-anchor="middle">Install adapter / review config</text>
+          <text x="334" y="140.1" class="t-muted" font-size="7.1" text-anchor="middle">MCP + hooks, dry run first</text>
         </g>
 
         <g id="node-step1" data-node-id="step1" data-node-label="Initialize the project" tabindex="0" role="button" aria-label="Focus Initialize the project, rekora init, Rekora on your machine" aria-pressed="false" data-node-kind="backend" data-node-sublabel="rekora init" data-node-context="Rekora on your machine">
@@ -925,7 +943,19 @@ been cleared for every commercial, promotional, or redistributive use.</metadata
           <text x="454" y="263.9" class="t-muted" font-size="7.7" text-anchor="middle">Memory with sources</text>
         </g>
 
+        <g id="node-step4" data-node-id="step4" data-node-label="Hand off on its own" tabindex="0" role="button" aria-label="Focus Hand off on its own, Next agent resumes, Rekora on your machine" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Next agent resumes" data-node-context="Rekora on your machine">
+          <title>Hand off on its own · Next agent resumes · Rekora on your machine</title>
+          <rect x="534" y="217" width="124" height="52" rx="8" class="c-mask"/>
+          <rect x="534" y="217" width="124" height="52" rx="8" class="c-backend" data-animate="node" style="--step: 4; --flow-node-name: archify-relay-node-4;" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(540 223) scale(0.6875)">
+            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
+          </g>
+          <text data-node-label="" x="596" y="248.1" class="t-primary" font-size="10.1" font-weight="600" text-anchor="middle">Hand off on its own</text>
+          <text x="596" y="260.2" class="t-muted" font-size="8" text-anchor="middle">Next agent resumes</text>
+        </g>
+
         <!-- Edge labels -->
+
 
 
 

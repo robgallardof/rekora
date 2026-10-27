@@ -7,9 +7,9 @@
     "quality_profile": "showcase",
     "repository": {
       "url": "https://github.com/robgallardof/rekora.git",
-      "revision": "19e644c30e325a2d6bcd816fe9c3b1d03f326f5e"
+      "revision": "480c3cb4deb0228d225fdb599e62002a57d1c159"
     },
-    "output": ".archify/getting-started-es-20261026-194000/diagram.html"
+    "output": ".archify/getting-started-es-20261027-164013/diagram.html"
   },
   "lanes": [
     {
@@ -25,7 +25,8 @@
     "step0",
     "step1",
     "step2",
-    "step3"
+    "step3",
+    "step4"
   ],
   "nodes": [
     {
@@ -60,7 +61,7 @@
       "col": 2,
       "type": "frontend",
       "label": "Conectar el agente",
-      "sublabel": "Instalar y revisar adaptador",
+      "sublabel": "MCP + hooks, primero en seco",
       "sources": [
         {
           "path": "crates/rekora-cli/src/adapters.rs"
@@ -77,6 +78,19 @@
       "sources": [
         {
           "path": "crates/rekora-cli/src/mcp.rs"
+        }
+      ]
+    },
+    {
+      "id": "step4",
+      "lane": "local",
+      "col": 4,
+      "type": "backend",
+      "label": "Relevo automático",
+      "sublabel": "El siguiente continúa",
+      "sources": [
+        {
+          "path": "crates/rekora-cli/src/hook.rs"
         }
       ]
     }
@@ -96,6 +110,11 @@
       "id": "edge2",
       "from": "step2",
       "to": "step3"
+    },
+    {
+      "id": "edge3",
+      "from": "step3",
+      "to": "step4"
     }
   ]
 }

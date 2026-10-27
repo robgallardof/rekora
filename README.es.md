@@ -18,8 +18,15 @@
 
 **Los agentes olvidan. Rekora recuerda — con fuentes.**
 
-[Qué lo hace diferente](#-qué-lo-hace-diferente) · [Inicio rápido](#-inicio-rápido) · [Cómo funciona](#-c%C3%B3mo-funciona) · [MCP](#-úsalo-desde-tu-agente-mcp) ·
-[Tareas y handoffs](#-tareas-y-handoffs) · [Comandos](#-referencia-de-comandos) · [English](README.md)
+<!-- kit:nav -->
+<p align="center"><a href="#-inicio-rápido"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/nav-es-01-dark.svg" /><img src="assets/readme-builder/kit/nav-es-01-light.svg" alt="Inicio rápido" height="44" /></picture></a>&nbsp;
+<a href="#-úsalo-desde-tu-agente-mcp"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/nav-es-02-dark.svg" /><img src="assets/readme-builder/kit/nav-es-02-light.svg" alt="MCP" height="34" /></picture></a>&nbsp;
+<a href="#-instalación-retirada-y-compatibilidad"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/nav-es-03-dark.svg" /><img src="assets/readme-builder/kit/nav-es-03-light.svg" alt="Instalar en agentes" height="34" /></picture></a>&nbsp;
+<a href="#-tareas-y-handoffs"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/nav-es-04-dark.svg" /><img src="assets/readme-builder/kit/nav-es-04-light.svg" alt="Handoffs" height="34" /></picture></a>&nbsp;
+<a href="#-cómo-funciona"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/nav-es-05-dark.svg" /><img src="assets/readme-builder/kit/nav-es-05-light.svg" alt="Cómo funciona" height="34" /></picture></a>&nbsp;
+<a href="#-referencia-de-comandos"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/nav-es-06-dark.svg" /><img src="assets/readme-builder/kit/nav-es-06-light.svg" alt="Comandos" height="34" /></picture></a>&nbsp;
+<a href="README.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/nav-es-07-dark.svg" /><img src="assets/readme-builder/kit/nav-es-07-light.svg" alt="English" height="34" /></picture></a></p>
+<!-- /kit:nav -->
 
 </div>
 
@@ -35,23 +42,9 @@ da a cada proyecto un almacén local y pequeño de **decisiones, restricciones, 
 uno ligado a los archivos que lo prueban — y le entrega al agente solo lo que importa para la tarea, dentro de un
 presupuesto de tokens. Cuando no sabe nada relevante, lo dice: `no_evidence`.
 
-<a id="-con-fuentes"></a>
-
-### <img src="assets/readme-builder/icons/link.svg" width="20" height="20" alt="" /> Con fuentes
-Las memorias citan archivos (`RUTA:LÍNEA`). Si un archivo citado cambia, el resultado se marca **possibly
-stale** — se comprueba con hashes BLAKE3.
-
-<a id="-confiable"></a>
-
-### <img src="assets/readme-builder/icons/shield.svg" width="20" height="20" alt="" /> Confiable
-Lo que escribe un agente queda como `candidate` hasta que una persona lo verifica. El contexto se marca como
-*datos, no instrucciones*. Los secretos se ocultan antes de guardarse.
-
-<a id="-local-y-ligero"></a>
-
-### <img src="assets/readme-builder/icons/box.svg" width="20" height="20" alt="" /> Local y ligero
-Un solo ejecutable, offline, sin modelo, sin daemon y sin telemetría. Una base SQLite por proyecto en `.rekora/`,
-ignorada por Git automáticamente.
+<!-- kit:why -->
+<p align="center"><a href="docs/architecture/RETRIEVAL.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/why-es-01-dark.svg" /><img src="assets/readme-builder/kit/why-es-01-light.svg" alt="Con fuentes: Cada memoria cita los archivos que la prueban. Si un archivo citado cambia, Rekora la marca como posiblemente desactualizada." width="49%" /></picture></a><a href="docs/architecture/SECURITY.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/why-es-02-dark.svg" /><img src="assets/readme-builder/kit/why-es-02-light.svg" alt="Confiable: Los agentes solo sugieren y una persona verifica. Lo guardado son datos, nunca instrucciones, y los secretos se ocultan." width="49%" /></picture></a><a href="docs/architecture/OVERVIEW.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/why-es-03-dark.svg" /><img src="assets/readme-builder/kit/why-es-03-light.svg" alt="Local y ligero: Un ejecutable, sin modelo, sin daemon y sin telemetría. Un archivo SQLite por proyecto en .rekora/, ignorado por Git." width="49%" /></picture></a><a href="docs/architecture/ADAPTERS.md#lifecycle-hooks-automatic-handoff"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/why-es-04-dark.svg" /><img src="assets/readme-builder/kit/why-es-04-light.svg" alt="Aguanta un corte: Si un agente se queda sin créditos a medias, el siguiente arranca con las tareas abiertas, el último turno y los cambios pendientes." width="49%" /></picture></a></p>
+<!-- /kit:why -->
 
 <p align="center">
   <img src="assets/rekora-terminal.svg" alt="Terminal: guardar una decisión verificada, buscarla con el puntaje explicado, detectar una fuente desactualizada y responder no_evidence" width="100%">
@@ -95,30 +88,9 @@ Códigos de salida: `0` ok (una búsqueda `no_evidence` es ok), `1` error, `2` u
 <a id="-úsalo-desde-tu-agente-mcp"></a>
 ## <img src="assets/readme-builder/icons/bot.svg" width="24" height="24" alt="" /> Úsalo desde tu agente (MCP)
 
-**Regístralo** en Claude Code (`.mcp.json` del proyecto) o en Codex (`~/.codex/config.toml`). Es una prueba en
-seco hasta que pasas `--confirm`, y antes se respalda el archivo original:
-
-```bash
-rekora agent list                      # hosts soportados, versiones detectadas y estado
-rekora agent install claude            # muestra el cambio, no escribe nada
-rekora agent install claude --confirm  # lo escribe (respaldo en .rekora/backups/)
-rekora agent uninstall codex --confirm
-```
+Configúralo con los comandos de [Instalación, retirada y compatibilidad](#-instalación-retirada-y-compatibilidad).
 
 O apunta cualquier cliente MCP a `rekora mcp serve --stdio` (desde la carpeta del proyecto o con `--project RUTA`). Probado con las versiones del protocolo MCP `2025-11-25` y `2026-07-28` (sin estado, `server/discover`).
-
-### Conecta OpenCode o DeepSeek
-
-Instala el adaptador de tu agente y pídele contexto del proyecto. Sin `--confirm` verás una vista previa; tu configuración personal no se modifica.
-
-```sh
-rekora agent install opencode --confirm
-opencode mcp list
-rekora agent install deepseek --confirm
-dsh web --patch .dsh/rekora.cordis.yml
-```
-
-[Guía de agentes, retirada y compatibilidad](docs/architecture/ADAPTERS.md).
 
 **Docker y puertos personalizados:** puedes ejecutar MCP por stdio en un contenedor
 o usar Streamable HTTP autenticado con `mcp serve --http --listen 127.0.0.1:9876`.
@@ -141,6 +113,49 @@ puerto configurable y comprobación de salud. Consulta la [guía de Docker](docs
 > Verificar, disputar, reemplazar y borrar memorias son acciones **solo de la CLI** (humanas): un agente nunca
 > puede verificar su propio trabajo. Probado de punta a punta con hosts reales: **Claude Code 2.1.310** y **Codex 0.164.0** llamaron a
 > `search` y obtuvieron la memoria correcta. Otros clientes MCP solo tienen pruebas de contrato; detalles en [docs/STATUS.md](docs/STATUS.md).
+
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
+
+<a id="-instalación-retirada-y-compatibilidad"></a>
+## <img src="assets/readme-builder/icons/bot.svg" width="24" height="24" alt="" /> Instalación, retirada y compatibilidad
+
+Cada instalación es una prueba en seco hasta que pasas `--confirm`. Antes se respalda el archivo original en
+`.rekora/backups/`, se respetan las entradas de otras herramientas y desinstalar quita solo lo que agregó Rekora.
+
+| Host | Qué se instala | Archivo | Alcance | Probado |
+|---|---|---|---|---|
+| Claude Code | Servidor MCP | `.mcp.json` | proyecto | Host real 2.1.310 |
+| Claude Code | Hooks de handoff (`SessionStart`, `Stop`) | `~/.claude/settings.json` | usuario | Los hooks instalados corren tal cual; falta probar una sesión real |
+| Codex | Servidor MCP | `~/.codex/config.toml` | usuario | Host real 0.164.0 |
+| Codex | Hooks de handoff (`SessionStart`, `Stop`) | `~/.codex/hooks.json` | usuario | Igual que Claude; confírmalos en `/hooks` de Codex |
+| OpenCode 1.x | Servidor MCP | `opencode.json` | proyecto | Descubrimiento real en 1.19.4 |
+| DeepSeek Harness | Overlay MCP | `.dsh/rekora.cordis.yml` | proyecto | Runtime MCP real en 0.2.1-rc.2 |
+| Cualquier otro cliente MCP | `rekora mcp serve --stdio`, configurado a mano | — | — | Solo pruebas de contrato |
+
+```bash
+rekora agent list                               # hosts, versiones detectadas y estado
+rekora agent install claude                     # vista previa: muestra el cambio, no escribe nada
+rekora agent install claude --confirm           # MCP para Claude Code (este proyecto)
+rekora agent install codex --confirm            # MCP para Codex (para todo el usuario)
+rekora agent install claude-hooks --confirm     # handoff automático para Claude Code
+rekora agent install codex-hooks --confirm      # handoff automático para Codex
+rekora agent uninstall claude-hooks --confirm   # quita solo lo que agregó Rekora
+```
+
+### Conecta OpenCode o DeepSeek
+
+```sh
+rekora agent install opencode --confirm
+opencode mcp list
+rekora agent install deepseek --confirm
+dsh web --patch .dsh/rekora.cordis.yml
+```
+
+<!-- kit:setup-links -->
+<p align="center"><a href="docs/architecture/ADAPTERS.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/setup-links-es-01-dark.svg" /><img src="assets/readme-builder/kit/setup-links-es-01-light.svg" alt="Detalle de adaptadores" height="44" /></picture></a>&nbsp;
+<a href="docs/architecture/ADAPTERS.md#lifecycle-hooks-automatic-handoff"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/setup-links-es-02-dark.svg" /><img src="assets/readme-builder/kit/setup-links-es-02-light.svg" alt="Handoff automático" height="34" /></picture></a>&nbsp;
+<a href="docs/DOCKER.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/setup-links-es-03-dark.svg" /><img src="assets/readme-builder/kit/setup-links-es-03-light.svg" alt="Docker" height="34" /></picture></a></p>
+<!-- /kit:setup-links -->
 
 <p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
 
@@ -236,21 +251,16 @@ flowchart LR
 Otras herramientas ya ofrecen memoria para agentes con procedencia y MCP (por ejemplo Kindex, con memoria en grafo
 y hooks). Las decisiones de Rekora son deliberadamente acotadas:
 
-| | |
-|---|---|
-| <img src="assets/readme-builder/icons/code.svg" width="20" height="20" alt="" /> **Un solo binario en Rust** | Sin runtime, sin daemon, sin servidor que hospedar. |
-| <img src="assets/readme-builder/icons/close.svg" width="20" height="20" alt="" /> **Ningún LLM al escribir** | Nada lo resume ni lo reescribe un modelo antes de guardarse. |
-| <img src="assets/readme-builder/icons/shield.svg" width="20" height="20" alt="" /> **Los agentes no se autoverifican** | Lo que escribe un agente queda como `candidate` hasta que una persona lo verifica. |
-| <img src="assets/readme-builder/icons/search.svg" width="20" height="20" alt="" /> **Abstención estricta** | Bajo el umbral de cobertura la respuesta es `no_evidence`, no una suposición. |
-| <img src="assets/readme-builder/icons/repeat.svg" width="20" height="20" alt="" /> **Handoffs versionados** | Las tareas llevan versión; las ediciones simultáneas fallan con `version_conflict`. |
-| <img src="assets/readme-builder/icons/branch.svg" width="20" height="20" alt="" /> **Consciente de worktrees** | Un almacén por repositorio, compartido entre worktrees enlazados, con ranking por rama. |
+<!-- kit:different -->
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/different-es-dark.svg" /><img src="assets/readme-builder/kit/different-es-light.svg" alt="Un solo binario: Sin runtime, sin daemon, sin servidor que hospedar. · Ningún LLM escribe: Ningún modelo resume ni reescribe nada antes de guardarlo. · Sin autoverificar: Lo que escribe un agente queda como candidate hasta que alguien lo verifica. · Abstención estricta: Bajo el umbral de cobertura responde no_evidence, no una suposición. · Handoffs versionados: Las ediciones simultáneas fallan con version_conflict en vez de pisarse. · Entiende worktrees: Un almacén por repositorio, compartido entre worktrees y ordenado por rama." width="100%" /></picture></p>
+<!-- /kit:different -->
 
 **Calidad de búsqueda** en el conjunto etiquetado propio del proyecto — pequeño (40 memorias: 30 con respuesta y
 10 sin respuesta) y escrito por los autores, así que tómalo como prueba de regresión, no como benchmark:
 
-| P@1 | Recall@5 | MRR | Especificidad sin respuesta |
-|:---:|:---:|:---:|:---:|
-| 0.933 | 1.000 | 0.967 | 1.0 |
+<!-- kit:quality -->
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/quality-es-dark.svg" /><img src="assets/readme-builder/kit/quality-es-light.svg" alt="0.933 P@1 · 1.000 Recall@5 · 0.967 MRR · 1.0 especificidad sin respuesta" width="100%" /></picture></p>
+<!-- /kit:quality -->
 
 Se reproduce con `rekora benchmark run --suite relevance`. Latencia, rendimiento y la máquina donde se midieron están en
 [docs/architecture/PERFORMANCE.md](docs/architecture/PERFORMANCE.md) (búsqueda en caliente p95: 3.6 ms con 1k,
@@ -303,7 +313,8 @@ Cambios: `--status`, `--note`, `--owner`, `--constraint`, `--decision`, `--file`
 |---|---|
 | `index` | Indexa de forma incremental los archivos del checkout actual (solo sintaxis). |
 | `symbols search NOMBRE [--branch B\|all] [--limit N]` | Busca declaraciones: exacta, prefijo y luego subcadena. |
-| `agent list` · `agent install\|uninstall claude\|codex [--confirm]` | Registra el servidor MCP en un host (prueba en seco por defecto). |
+| `agent list` · `agent install\|uninstall HOST [--confirm]` | `claude`, `codex`, `opencode`, `deepseek` registran el servidor MCP; `claude-hooks`, `codex-hooks` agregan los hooks de handoff (prueba en seco por defecto). |
+| `hook session-start\|stop [--host NOMBRE]` | Lo que corren los hooks instalados: informar al siguiente agente o guardar dónde se quedó este. |
 | `mcp serve [--stdio \| --http --listen DIR]` | Servidor MCP por stdin/stdout (por defecto) o Streamable HTTP autenticado (`--listen`, por defecto `127.0.0.1:8080`). Ver [docs/DOCKER.md](docs/DOCKER.md). |
 | `doctor` | Revisa la instalación, el almacén y los adaptadores; nunca modifica nada. |
 | `benchmark run [--suite core\|relevance]` | Benchmarks offline en una carpeta temporal. |
@@ -344,11 +355,17 @@ cargo test --workspace
 Las pruebas usan archivos SQLite reales, repositorios Git reales y un proceso MCP real, además de dos pruebas
 opcionales contra Claude Code y Codex reales. La CI corre en Windows, Linux y macOS.
 
-**Documentación:** [Estado](docs/STATUS.md) · [Visión general](docs/architecture/OVERVIEW.md) ·
-[Modelo de datos](docs/architecture/DATA_MODEL.md) · [Búsqueda](docs/architecture/RETRIEVAL.md) ·
-[Seguridad](docs/architecture/SECURITY.md) · [Adaptadores](docs/architecture/ADAPTERS.md) ·
-[Solución de problemas](docs/architecture/TROUBLESHOOTING.md) · [ADRs](docs/adr) ·
-[Contribuir](CONTRIBUTING.md) · [Reglas para agentes](AGENTS.md)
+<!-- kit:docs -->
+<p align="center"><a href="docs/STATUS.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/docs-es-01-dark.svg" /><img src="assets/readme-builder/kit/docs-es-01-light.svg" alt="Estado" height="34" /></picture></a>&nbsp;
+<a href="docs/architecture/OVERVIEW.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/docs-es-02-dark.svg" /><img src="assets/readme-builder/kit/docs-es-02-light.svg" alt="Visión general" height="34" /></picture></a>&nbsp;
+<a href="docs/architecture/DATA_MODEL.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/docs-es-03-dark.svg" /><img src="assets/readme-builder/kit/docs-es-03-light.svg" alt="Modelo de datos" height="34" /></picture></a>&nbsp;
+<a href="docs/architecture/RETRIEVAL.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/docs-es-04-dark.svg" /><img src="assets/readme-builder/kit/docs-es-04-light.svg" alt="Búsqueda" height="34" /></picture></a>&nbsp;
+<a href="docs/architecture/SECURITY.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/docs-es-05-dark.svg" /><img src="assets/readme-builder/kit/docs-es-05-light.svg" alt="Seguridad" height="34" /></picture></a>&nbsp;
+<a href="docs/architecture/ADAPTERS.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/docs-es-06-dark.svg" /><img src="assets/readme-builder/kit/docs-es-06-light.svg" alt="Adaptadores" height="34" /></picture></a>&nbsp;
+<a href="docs/architecture/TROUBLESHOOTING.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/docs-es-07-dark.svg" /><img src="assets/readme-builder/kit/docs-es-07-light.svg" alt="Problemas" height="34" /></picture></a>&nbsp;
+<a href="docs/adr"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/docs-es-08-dark.svg" /><img src="assets/readme-builder/kit/docs-es-08-light.svg" alt="ADRs" height="34" /></picture></a>&nbsp;
+<a href="CONTRIBUTING.md"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme-builder/kit/docs-es-09-dark.svg" /><img src="assets/readme-builder/kit/docs-es-09-light.svg" alt="Contribuir" height="34" /></picture></a></p>
+<!-- /kit:docs -->
 
 <p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
 
