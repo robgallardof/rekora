@@ -49,6 +49,12 @@ Format from `planning/REKORA_IMPLEMENTATION_PLAN.md` ("Execution report template
   performance benchmarks and new Docker smoke for this adapter-only change.
 - CI execution after pushing is recorded separately; the workflow's existence is not a passing result.
 
+## Release v0.1.0 — 2026-10-26
+
+- Tagged `v0.1.0` on main after CI passed on Windows, Linux and macOS (including the Docker and
+  agent-host jobs). The tag triggers `.github/workflows/release.yml`, which builds and checksums the
+  archives into a **draft** release; publishing the draft is a manual step on GitHub.
+
 ## Docker follow-up and pending release edits — 2026-10-26
 
 - Re-executed `python scripts/test_docker.py`: passed for real stdio and

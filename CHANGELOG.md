@@ -1,9 +1,9 @@
 # Changelog
 
-## 0.1.0 — unreleased
+## 0.1.0 — 2026-10-26
 
-Prepared release packaging for Windows, Linux and macOS (x86_64 and Apple Silicon)
-with SHA-256 checksums. The release workflow creates draft artifacts when a tag is pushed.
+First tagged release (`v0.1.0`). The release workflow builds Windows, Linux and macOS (x86_64 and
+Apple Silicon) archives with SHA-256 checksums into a draft GitHub release.
 
 ### Added
 - Docker image and Compose service with persistent project mounts, custom host ports,
