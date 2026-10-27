@@ -6,6 +6,13 @@
 //! |---|---|---|
 //! | Claude Code | `<project>/.mcp.json` (project scope) | `mcpServers.rekora` |
 //! | Codex | `$CODEX_HOME/config.toml`, default `~/.codex/config.toml` (user scope) | `[mcp_servers.rekora]` |
+//! | Claude Code hooks | `$CLAUDE_CONFIG_DIR/settings.json`, default `~/.claude/settings.json` (user) | `rekora hook` handlers |
+//! | Codex hooks | `$CODEX_HOME/hooks.json`, default `~/.codex/hooks.json` (user scope) | `rekora hook` handlers |
+//!
+//! The hook adapters add `SessionStart` and `Stop` handlers that run `rekora
+//! hook` (see `hook.rs`), so an agent cut off mid-task still leaves a trace for
+//! the next one. They are user-wide because the hook does nothing outside a
+//! Rekora project; handlers of other tools in the same file are kept as they are.
 //!
 //! Safety contract (master prompt §8, test matrix R10, R24, R32):
 //! - `--dry-run` (the default) prints the planned change and writes nothing;
@@ -45,6 +52,10 @@ pub enum Host {
     OpenCode,
     /// Official DeepSeek Harness.
     Deepseek,
+    /// Claude Code lifecycle hooks (automatic handoff).
+    ClaudeHooks,
+    /// Codex lifecycle hooks (automatic handoff).
+    CodexHooks,
 }
 
 impl std::str::FromStr for Host {
@@ -55,14 +66,26 @@ impl std::str::FromStr for Host {
             "codex" => Ok(Self::Codex),
             "opencode" => Ok(Self::OpenCode),
             "deepseek" | "dsh" => Ok(Self::Deepseek),
-            other => bail!("unknown agent `{other}`; supported: claude, codex, opencode, deepseek"),
+            "claude-hooks" => Ok(Self::ClaudeHooks),
+            "codex-hooks" => Ok(Self::CodexHooks),
+            other => bail!(
+                "unknown agent `{other}`; supported: claude, codex, opencode, deepseek, \
+claude-hooks, codex-hooks"
+            ),
         }
     }
 }
 
 impl Host {
     /// All hosts with an adapter.
-    pub const ALL: [Host; 4] = [Host::Claude, Host::Codex, Host::OpenCode, Host::Deepseek];
+    pub const ALL: [Host; 6] = [
+        Host::Claude,
+        Host::Codex,
+        Host::OpenCode,
+        Host::Deepseek,
+        Host::ClaudeHooks,
+        Host::CodexHooks,
+    ];
 
     /// Stable id.
     pub fn id(self) -> &'static str {
@@ -71,13 +94,15 @@ impl Host {
             Self::Codex => "codex",
             Self::OpenCode => "opencode",
             Self::Deepseek => "deepseek",
+            Self::ClaudeHooks => "claude-hooks",
+            Self::CodexHooks => "codex-hooks",
         }
     }
 
     fn binary(self) -> &'static str {
         match self {
-            Self::Claude => "claude",
-            Self::Codex => "codex",
+            Self::Claude | Self::ClaudeHooks => "claude",
+            Self::Codex | Self::CodexHooks => "codex",
             Self::OpenCode => "opencode",
             Self::Deepseek => "dsh",
         }
@@ -96,14 +121,16 @@ impl Host {
                 Ok(project.checkout.join("opencode.json"))
             }
             Self::Deepseek => Ok(project.checkout.join(".dsh/rekora.cordis.yml")),
-            Self::Codex => {
-                let home = match std::env::var_os("CODEX_HOME") {
+            Self::Codex => Ok(codex_home()?.join("config.toml")),
+            Self::CodexHooks => Ok(codex_home()?.join("hooks.json")),
+            Self::ClaudeHooks => {
+                let home = match std::env::var_os("CLAUDE_CONFIG_DIR") {
                     Some(dir) if !dir.is_empty() => PathBuf::from(dir),
                     _ => home_dir()
                         .ok_or_else(|| anyhow!("cannot find the home directory"))?
-                        .join(".codex"),
+                        .join(".claude"),
                 };
-                Ok(home.join("config.toml"))
+                Ok(home.join("settings.json"))
             }
         }
     }
@@ -112,7 +139,7 @@ impl Host {
     pub fn scope(self) -> &'static str {
         match self {
             Self::Claude | Self::OpenCode | Self::Deepseek => "project",
-            Self::Codex => "user",
+            Self::Codex | Self::ClaudeHooks | Self::CodexHooks => "user",
         }
     }
 
@@ -144,6 +171,12 @@ impl Host {
             }
             Self::Codex => {
                 "implemented; config contract-tested; listing checked with `codex mcp list` on 0.164.0"
+            }
+            Self::ClaudeHooks => {
+                "implemented; SessionStart/Stop handlers in exec form; see docs/architecture/ADAPTERS.md"
+            }
+            Self::CodexHooks => {
+                "implemented; SessionStart/Stop handlers; review and trust them in Codex /hooks"
             }
         }
     }
@@ -222,6 +255,7 @@ pub fn plan_install(host: Host, project: &Project, launch: &Launch) -> Result<Pl
         Host::OpenCode | Host::Deepseek => {
             project_install(host, before.as_deref(), launch, project)?
         }
+        Host::ClaudeHooks | Host::CodexHooks => hooks_install(host, before.as_deref(), launch)?,
     };
     let action = match (&before, existed_entry) {
         (Some(b), _) if *b == after => "none",
@@ -259,6 +293,7 @@ pub fn plan_uninstall(host: Host, project: &Project) -> Result<Plan> {
         Host::Claude => json_uninstall(text)?,
         Host::Codex => toml_uninstall(text)?,
         Host::OpenCode | Host::Deepseek => project_uninstall(host, text)?,
+        Host::ClaudeHooks | Host::CodexHooks => hooks_uninstall(text)?,
     };
     let created_by_us = load_state(project)?
         .installs
@@ -346,6 +381,24 @@ pub fn check(host: Host, project: &Project) -> Result<Option<String>> {
         return Ok(None);
     };
     let command = match host {
+        Host::ClaudeHooks | Host::CodexHooks => {
+            let doc: Value = serde_json::from_str(&text)
+                .map_err(|e| anyhow!("{} is not valid JSON: {e}", path.display()))?;
+            let events: Vec<&str> = HOOK_EVENTS
+                .iter()
+                .filter(|(event, _)| {
+                    doc.pointer(&format!("/hooks/{event}"))
+                        .and_then(Value::as_array)
+                        .is_some_and(|groups| groups.iter().any(group_has_ours))
+                })
+                .map(|(event, _)| *event)
+                .collect();
+            return Ok(Some(if events.is_empty() {
+                format!("{}: not installed", path.display())
+            } else {
+                format!("{}: installed ({})", path.display(), events.join(", "))
+            }));
+        }
         Host::OpenCode | Host::Deepseek => {
             let doc: Value = serde_json::from_str(&text)?;
             if host == Host::OpenCode {
@@ -525,6 +578,174 @@ fn json_uninstall(text: &str) -> Result<(String, bool, bool)> {
     Ok((out, removed, now_empty))
 }
 
+// --------------------------------------------------------------- hooks ----
+
+/// Host lifecycle events Rekora handles, and the `rekora hook` event for each.
+const HOOK_EVENTS: [(&str, &str); 2] = [("SessionStart", "session-start"), ("Stop", "stop")];
+
+/// One `rekora hook` handler in the host's format. Claude runs the exec form
+/// (no shell). Codex takes a shell string plus a Windows override; both quote
+/// every argument, and the hook payload arrives on stdin, never in the command.
+fn hook_handler(host: Host, exe: &str, event: &str) -> Value {
+    let agent = if host == Host::ClaudeHooks {
+        "claude"
+    } else {
+        "codex"
+    };
+    let args = ["hook", event, "--host", agent];
+    if host == Host::ClaudeHooks {
+        return json!({ "type": "command", "command": exe, "args": args, "timeout": 10 });
+    }
+    let words = || std::iter::once(exe.to_owned()).chain(args.iter().map(|a| (*a).to_owned()));
+    let posix: Vec<String> = words()
+        .map(|w| format!("'{}'", w.replace('\\', "/").replace('\'', r#"'"'"'"#)))
+        .collect();
+    let windows: Vec<String> = words()
+        .map(|w| format!("'{}'", w.replace('\'', "''")))
+        .collect();
+    let script = format!("& {}; exit $LASTEXITCODE", windows.join(" "));
+    json!({
+        "type": "command",
+        "command": posix.join(" "),
+        "commandWindows": encoded_powershell(&script),
+        "timeout": 10,
+    })
+}
+
+/// `powershell.exe -EncodedCommand`: the script travels as base64 UTF-16LE, so
+/// no quoting rule of the launching shell can split or reinterpret it.
+fn encoded_powershell(script: &str) -> String {
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let bytes: Vec<u8> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    let mut encoded = String::new();
+    for chunk in bytes.chunks(3) {
+        let n = (u32::from(chunk[0]) << 16)
+            | (u32::from(chunk.get(1).copied().unwrap_or(0)) << 8)
+            | u32::from(chunk.get(2).copied().unwrap_or(0));
+        let sextet = |shift: u32| char::from(ALPHABET[((n >> shift) & 63) as usize]);
+        encoded.push(sextet(18));
+        encoded.push(sextet(12));
+        encoded.push(if chunk.len() > 1 { sextet(6) } else { '=' });
+        encoded.push(if chunk.len() > 2 { sextet(0) } else { '=' });
+    }
+    format!("powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand {encoded}")
+}
+
+/// True for a handler Rekora wrote: it runs an executable named `rekora` with
+/// the `hook` subcommand (exec form for Claude, quoted string for Codex).
+fn is_our_handler(handler: &Value) -> bool {
+    let command = handler["command"].as_str().unwrap_or_default();
+    let is_rekora = |exe: &str| {
+        Path::new(&exe.replace('\\', "/"))
+            .file_stem()
+            .is_some_and(|stem| stem.eq_ignore_ascii_case("rekora"))
+    };
+    match handler["args"].as_array() {
+        Some(args) => is_rekora(command) && args.first().and_then(Value::as_str) == Some("hook"),
+        // The quoted executable is everything before the quoted `hook` word.
+        None => command
+            .split_once(" 'hook' ")
+            .is_some_and(|(exe, _)| is_rekora(exe.trim_matches('\''))),
+    }
+}
+
+fn group_has_ours(group: &Value) -> bool {
+    group["hooks"]
+        .as_array()
+        .is_some_and(|handlers| handlers.iter().any(is_our_handler))
+}
+
+/// Removes Rekora's handlers, and the groups or events left empty by that.
+/// Returns whether anything was removed.
+fn remove_our_handlers(hooks: &mut serde_json::Map<String, Value>) -> bool {
+    let mut removed = false;
+    for (event, _) in HOOK_EVENTS {
+        let Some(groups) = hooks.get_mut(event).and_then(Value::as_array_mut) else {
+            continue;
+        };
+        for group in groups.iter_mut() {
+            if let Some(handlers) = group.get_mut("hooks").and_then(Value::as_array_mut) {
+                let before = handlers.len();
+                handlers.retain(|h| !is_our_handler(h));
+                removed |= handlers.len() != before;
+            }
+        }
+        groups.retain(|g| g["hooks"].as_array().is_none_or(|h| !h.is_empty()));
+        if groups.is_empty() {
+            hooks.remove(event);
+        }
+    }
+    removed
+}
+
+fn hooks_install(
+    host: Host,
+    before: Option<&str>,
+    launch: &Launch,
+) -> Result<(String, Value, bool)> {
+    let mut doc: Value = match before {
+        Some(text) if !text.trim().is_empty() => serde_json::from_str(text)
+            .map_err(|e| anyhow!("existing hooks file is not valid JSON ({e}); not modified"))?,
+        _ => json!({}),
+    };
+    let root = doc
+        .as_object_mut()
+        .ok_or_else(|| anyhow!("existing hooks file is not a JSON object; not modified"))?;
+    let hooks = root
+        .entry("hooks")
+        .or_insert_with(|| json!({}))
+        .as_object_mut()
+        .ok_or_else(|| anyhow!("`hooks` is not an object; not modified"))?;
+    for (event, _) in HOOK_EVENTS {
+        if hooks.get(event).is_some_and(|v| !v.is_array()) {
+            bail!("`hooks.{event}` is not an array; not modified");
+        }
+    }
+    let existed = remove_our_handlers(hooks);
+    let mut entry = serde_json::Map::new();
+    for (event, arg) in HOOK_EVENTS {
+        let handler = hook_handler(host, &launch.command, arg);
+        entry.insert(event.to_owned(), handler.clone());
+        if let Some(groups) = hooks
+            .entry(event)
+            .or_insert_with(|| json!([]))
+            .as_array_mut()
+        {
+            groups.push(json!({ "hooks": [handler] }));
+        }
+    }
+    let mut text = serde_json::to_string_pretty(&doc)?;
+    text.push('\n');
+    // Keep the file byte-identical when nothing changed (idempotent install).
+    if let Some(b) = before
+        && serde_json::from_str::<Value>(b).ok().as_ref() == Some(&doc)
+    {
+        text = b.to_owned();
+    }
+    Ok((text, Value::Object(entry), existed))
+}
+
+fn hooks_uninstall(text: &str) -> Result<(String, bool, bool)> {
+    let mut doc: Value = serde_json::from_str(text)
+        .map_err(|e| anyhow!("existing hooks file is not valid JSON ({e}); not modified"))?;
+    let removed = match doc.get_mut("hooks").and_then(Value::as_object_mut) {
+        Some(hooks) => remove_our_handlers(hooks),
+        None => false,
+    };
+    if let Some(root) = doc.as_object_mut()
+        && root
+            .get("hooks")
+            .and_then(Value::as_object)
+            .is_some_and(serde_json::Map::is_empty)
+    {
+        root.remove("hooks");
+    }
+    let now_empty = doc.as_object().is_some_and(serde_json::Map::is_empty);
+    let mut out = serde_json::to_string_pretty(&doc)?;
+    out.push('\n');
+    Ok((out, removed, now_empty))
+}
+
 // ---------------------------------------------------------------- TOML ----
 
 fn toml_install(before: Option<&str>, launch: &Launch) -> Result<(String, Value, bool)> {
@@ -636,6 +857,15 @@ fn save_state(project: &Project, state: &State) -> Result<()> {
     write_atomic(&project.data_dir().join("adapters.json"), &text)
 }
 
+fn codex_home() -> Result<PathBuf> {
+    Ok(match std::env::var_os("CODEX_HOME") {
+        Some(dir) if !dir.is_empty() => PathBuf::from(dir),
+        _ => home_dir()
+            .ok_or_else(|| anyhow!("cannot find the home directory"))?
+            .join(".codex"),
+    })
+}
+
 fn home_dir() -> Option<PathBuf> {
     std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" })
         .filter(|v| !v.is_empty())
@@ -717,6 +947,110 @@ mod tests {
         assert!(json_install(Some(r#"{"mcpServers": 3}"#), &launch()).is_err());
         assert!(toml_install(Some("mcp_servers = 3"), &launch()).is_err());
         assert!(toml_install(Some("[[[bad"), &launch()).is_err());
+    }
+
+    #[test]
+    fn hooks_keep_foreign_handlers_and_round_trip() {
+        // Shape of a real user settings file with another tool's hooks.
+        let before = r#"{
+  "model": "opus",
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "*", "hooks": [ { "type": "command", "command": "C:\\bin\\reporinse.exe", "args": ["hook", "claude", "PreToolUse"] } ] }
+    ],
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "notify-send done" } ] }
+    ]
+  }
+}
+"#;
+        for host in [Host::ClaudeHooks, Host::CodexHooks] {
+            let (after, entry, existed) = hooks_install(host, Some(before), &launch()).unwrap();
+            assert!(!existed);
+            assert!(entry["SessionStart"].is_object() && entry["Stop"].is_object());
+            let doc: Value = serde_json::from_str(&after).unwrap();
+            let orig: Value = serde_json::from_str(before).unwrap();
+            assert_eq!(doc["model"], "opus");
+            assert_eq!(doc["hooks"]["PreToolUse"], orig["hooks"]["PreToolUse"]);
+            assert_eq!(doc["hooks"]["Stop"][0], orig["hooks"]["Stop"][0]);
+            assert_eq!(doc["hooks"]["Stop"].as_array().unwrap().len(), 2);
+            assert!(group_has_ours(&doc["hooks"]["SessionStart"][0]));
+            // A tool named like us but not running `rekora hook` is not ours.
+            assert!(!group_has_ours(&doc["hooks"]["PreToolUse"][0]));
+
+            let (again, _, existed) = hooks_install(host, Some(&after), &launch()).unwrap();
+            assert!(existed);
+            assert_eq!(again, after, "second install changed bytes");
+
+            let (removed, did, empty) = hooks_uninstall(&after).unwrap();
+            assert!(did && !empty);
+            assert_eq!(serde_json::from_str::<Value>(&removed).unwrap(), orig);
+        }
+    }
+
+    #[test]
+    fn hook_commands_quote_paths_for_each_host() {
+        let claude = hook_handler(Host::ClaudeHooks, &launch().command, "stop");
+        assert_eq!(claude["command"], launch().command);
+        assert_eq!(claude["args"], json!(["hook", "stop", "--host", "claude"]));
+
+        let codex = hook_handler(
+            Host::CodexHooks,
+            r"C:\it's here\rekora.exe",
+            "session-start",
+        );
+        assert_eq!(
+            codex["command"],
+            r#"'C:/it'"'"'s here/rekora.exe' 'hook' 'session-start' '--host' 'codex'"#
+        );
+        assert!(is_our_handler(&codex));
+        let encoded = codex["commandWindows"]
+            .as_str()
+            .unwrap()
+            .rsplit(' ')
+            .next()
+            .unwrap();
+        assert_eq!(
+            decode_utf16_base64(encoded),
+            r"& 'C:\it''s here\rekora.exe' 'hook' 'session-start' '--host' 'codex'; exit $LASTEXITCODE"
+        );
+    }
+
+    #[test]
+    fn hooks_created_file_uninstalls_to_empty_and_refuses_bad_shapes() {
+        let (after, _, _) = hooks_install(Host::CodexHooks, None, &launch()).unwrap();
+        let (_, did, empty) = hooks_uninstall(&after).unwrap();
+        assert!(did && empty, "{after}");
+        assert!(hooks_install(Host::ClaudeHooks, Some("{ nope"), &launch()).is_err());
+        assert!(hooks_install(Host::ClaudeHooks, Some(r#"{"hooks": []}"#), &launch()).is_err());
+        assert!(
+            hooks_install(
+                Host::ClaudeHooks,
+                Some(r#"{"hooks": {"Stop": {}}}"#),
+                &launch()
+            )
+            .is_err()
+        );
+    }
+
+    fn decode_utf16_base64(text: &str) -> String {
+        const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let mut bits = 0u32;
+        let mut count = 0;
+        let mut bytes = Vec::new();
+        for c in text.bytes().filter(|&c| c != b'=') {
+            bits = (bits << 6) | ALPHABET.iter().position(|&a| a == c).unwrap() as u32;
+            count += 6;
+            if count >= 8 {
+                count -= 8;
+                bytes.push((bits >> count) as u8);
+            }
+        }
+        let units: Vec<u16> = bytes
+            .chunks(2)
+            .map(|p| u16::from_le_bytes([p[0], p[1]]))
+            .collect();
+        String::from_utf16(&units).unwrap()
     }
 
     #[test]

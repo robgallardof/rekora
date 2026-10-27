@@ -34,7 +34,7 @@ pub use code::{FileUpdate, Symbol, SymbolHit};
 pub use context::{ContextPack, PACK_HEADER, PackItem, render_line, short_id};
 pub use schema::{MIGRATIONS, current_version, migrate, snapshot_path};
 pub use search::{Freshness, Hit, ScoreExplain, SearchOptions, SearchOutcome, SearchStatus};
-pub use tasks::{HANDOFF_SCHEMA, Handoff, Task};
+pub use tasks::{HANDOFF_SCHEMA, Handoff, TURN_MAX_FILES, TURN_MESSAGE_BYTES, Task, Turn};
 pub use transfer::{
     EXPORT_FORMAT, ExportFile, ExportedMemory, ImportReport, MAX_IMPORT_BYTES, Rejected,
 };

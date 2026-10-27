@@ -852,3 +852,223 @@ fn project_hosts_install_without_global_configuration_and_remove_only_owned_entr
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "malformed");
     }
 }
+
+/// Runs `rekora <args>` with `stdin` as the hook payload.
+fn hook(dir: &Path, args: &[&str], stdin: &str, env: &[(&str, &Path)]) -> Output {
+    let mut cmd = Command::new(BIN);
+    cmd.current_dir(dir)
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    for (k, v) in env {
+        cmd.env(k, v);
+    }
+    let mut child = cmd.spawn().unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(stdin.as_bytes())
+        .unwrap();
+    child.wait_with_output().unwrap()
+}
+
+/// Runs a handler exactly as written in a host's hooks file.
+fn run_installed(handler: &Value, cwd: &Path, stdin: &str) -> Output {
+    let mut cmd = if let Some(args) = handler["args"].as_array() {
+        let mut c = Command::new(handler["command"].as_str().unwrap());
+        c.args(args.iter().map(|a| a.as_str().unwrap()));
+        c
+    } else if cfg!(windows) {
+        let mut c = Command::new("cmd");
+        c.args(["/D", "/C", handler["commandWindows"].as_str().unwrap()]);
+        c
+    } else {
+        let mut c = Command::new("sh");
+        c.args(["-c", handler["command"].as_str().unwrap()]);
+        c
+    };
+    cmd.current_dir(cwd)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = cmd.spawn().unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(stdin.as_bytes())
+        .unwrap();
+    child.wait_with_output().unwrap()
+}
+
+#[test]
+fn s18_agent_cut_off_mid_task_is_picked_up_by_another_agent() {
+    let dir = tempfile::tempdir().unwrap();
+    let elsewhere = tempfile::tempdir().unwrap();
+    repo_at(dir.path());
+    ok(dir.path(), &["init"]);
+    let repo = dir.path().to_string_lossy().replace('\\', "/");
+
+    // Agent A (Codex) claims a task and edits a file...
+    let mut a = McpClient::start(dir.path(), "codex");
+    let (err, doc) = a.call(
+        "handoff_create",
+        json!({
+            "task": "token-refresh",
+            "objective": "Implement token refresh endpoint",
+            "remaining": ["write refresh handler", "add integration test"],
+            "status": "in_progress"
+        }),
+    );
+    assert!(!err, "{doc}");
+    std::fs::write(
+        dir.path().join("src/orders.rs"),
+        "pub struct OrderService;\npub fn refresh() {}\n",
+    )
+    .unwrap();
+    // ...its turn ends (the host runs the Stop hook)...
+    let stop = json!({
+        "cwd": repo,
+        "hook_event_name": "Stop",
+        "last_assistant_message": "Refresh handler half written; next: tests. api_key=sk-live-abcdefghijklmnop1234"
+    });
+    let out = hook(
+        elsewhere.path(),
+        &["hook", "stop", "--host", "codex"],
+        &stop.to_string(),
+        &[],
+    );
+    assert!(out.status.success() && out.stdout.is_empty(), "{out:?}");
+    // ...and then it is cut off: no handoff_create, no task update.
+    drop(a);
+
+    // Agent B (Claude) starts in the same project and is briefed by SessionStart.
+    let start = json!({ "cwd": repo, "hook_event_name": "SessionStart", "source": "startup" });
+    let out = hook(
+        elsewhere.path(),
+        &["hook", "session-start", "--host", "claude"],
+        &start.to_string(),
+        &[],
+    );
+    assert!(out.status.success(), "{out:?}");
+    let brief = String::from_utf8(out.stdout).unwrap();
+    assert!(brief.contains("- token-refresh [in_progress]"), "{brief}");
+    assert!(brief.contains("remaining: write refresh handler; add integration test"));
+    assert!(brief.contains("Last recorded turn: codex"), "{brief}");
+    assert!(brief.contains("> Refresh handler half written; next: tests."));
+    assert!(
+        !brief.contains("sk-live-abcdefghijklmnop1234"),
+        "secret leaked: {brief}"
+    );
+    assert!(brief.contains("M src/orders.rs"), "{brief}");
+    assert!(brief.contains("handoff_resume"));
+
+    // B claims the task and continues where A stopped.
+    let mut b = McpClient::start(dir.path(), "claude");
+    let (err, doc) = b.call(
+        "handoff_resume",
+        json!({ "task": "token-refresh", "owner": "claude" }),
+    );
+    assert!(!err, "{doc}");
+    assert_eq!(doc["task"]["owner"], "claude");
+    assert_eq!(doc["task"]["status"], "in_progress");
+}
+
+#[test]
+fn s19_hooks_stay_silent_and_succeed_outside_a_project_or_on_bad_input() {
+    let plain = tempfile::tempdir().unwrap();
+    for (event, payload) in [
+        ("session-start", String::new()),
+        ("stop", "{ not json".to_owned()),
+        (
+            "session-start",
+            json!({ "cwd": plain.path().join("gone") }).to_string(),
+        ),
+    ] {
+        let out = hook(
+            plain.path(),
+            &["hook", event, "--host", "codex"],
+            &payload,
+            &[],
+        );
+        assert!(out.status.success(), "{event}: {out:?}");
+        assert!(out.stdout.is_empty(), "{event}: {out:?}");
+    }
+    // A clean, finished project does not interrupt the next session either.
+    let dir = tempfile::tempdir().unwrap();
+    repo_at(dir.path());
+    ok(dir.path(), &["init"]);
+    let out = hook(dir.path(), &["hook", "session-start"], "{}", &[]);
+    assert!(out.status.success() && out.stdout.is_empty(), "{out:?}");
+}
+
+#[test]
+fn s20_installed_hook_commands_run_as_written() {
+    let dir = tempfile::tempdir().unwrap();
+    let homes = tempfile::tempdir().unwrap();
+    repo_at(dir.path());
+    ok(dir.path(), &["init"]);
+    ok(
+        dir.path(),
+        &[
+            "task",
+            "create",
+            "docs-pass",
+            "--objective",
+            "Document hooks",
+            "--todo",
+            "write guide",
+        ],
+    );
+    let claude_home = homes.path().join("claude");
+    let codex_home = homes.path().join("codex");
+    let env: [(&str, &Path); 2] = [
+        ("CLAUDE_CONFIG_DIR", &claude_home),
+        ("CODEX_HOME", &codex_home),
+    ];
+    for host in ["claude-hooks", "codex-hooks"] {
+        let plan = ok_env(dir.path(), &["agent", "install", host, "--confirm"], &env);
+        assert_eq!(plan["applied"], true, "{plan}");
+    }
+    let listed = ok_env(dir.path(), &["agent", "list"], &env);
+    for host in ["claude-hooks", "codex-hooks"] {
+        let row = listed
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["host"] == host)
+            .unwrap();
+        assert!(
+            row["state"]
+                .as_str()
+                .unwrap()
+                .contains("installed (SessionStart, Stop)"),
+            "{row}"
+        );
+    }
+
+    let payload = json!({ "cwd": dir.path() }).to_string();
+    for file in [
+        claude_home.join("settings.json"),
+        codex_home.join("hooks.json"),
+    ] {
+        let doc: Value = serde_json::from_slice(&std::fs::read(&file).unwrap()).unwrap();
+        let handler = &doc["hooks"]["SessionStart"][0]["hooks"][0];
+        let out = run_installed(handler, dir.path(), &payload);
+        assert!(out.status.success(), "{}: {out:?}", file.display());
+        let brief = String::from_utf8_lossy(&out.stdout);
+        assert!(
+            brief.contains("- docs-pass [open]"),
+            "{}: {brief}",
+            file.display()
+        );
+    }
+
+    for host in ["claude-hooks", "codex-hooks"] {
+        ok_env(dir.path(), &["agent", "uninstall", host, "--confirm"], &env);
+    }
+    assert!(!claude_home.join("settings.json").exists());
+    assert!(!codex_home.join("hooks.json").exists());
+}

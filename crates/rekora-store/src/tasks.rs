@@ -6,11 +6,17 @@
 //! win: the second gets [`StoreError::VersionConflict`] with the current
 //! version and must re-read (test matrix R15, R26). Changes are logged in the
 //! shared `events` table with `task:<id>` as subject.
+//!
+//! [`Turn`] is the automatic counterpart of a handoff: the host's end-of-turn
+//! hook records where each agent stopped, so the next agent sees it even when
+//! the previous one was cut off (out of credits, crash) before it could write a
+//! handoff. Only the latest turn per host is kept, in `meta`, so a hook that
+//! fires after every turn never grows the database.
 
 use rekora_core::task::{TaskPatch, TaskState, TaskStatus, clean_item, validate_task_id};
 use rekora_core::{CoreError, SourcePolicy};
 use rusqlite::{OptionalExtension, TransactionBehavior, params};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::context::ContextPack;
 use crate::{Store, StoreError, now, record_event};
@@ -56,6 +62,28 @@ pub struct Handoff {
     pub context: ContextPack,
     /// How to continue, in plain words.
     pub instructions: &'static str,
+}
+
+/// Longest stored excerpt of an agent's last message, in bytes.
+pub const TURN_MESSAGE_BYTES: usize = 1500;
+/// Most uncommitted paths kept per turn.
+pub const TURN_MAX_FILES: usize = 50;
+
+/// Where an agent was when its last turn ended (written by a host hook).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Turn {
+    /// Host that reported the turn (`claude`, `codex`, ...).
+    pub host: String,
+    /// UTC RFC 3339, set by the store.
+    pub at: String,
+    /// Branch of the checkout at that moment.
+    pub branch: Option<String>,
+    /// Commit of the checkout at that moment.
+    pub commit: Option<String>,
+    /// Bounded, redacted excerpt of the agent's last message.
+    pub last_message: Option<String>,
+    /// `git status --porcelain` lines, bounded.
+    pub uncommitted: Vec<String>,
 }
 
 const HANDOFF_INSTRUCTIONS: &str = "Continue this task. Respect `constraints`, do not repeat \
@@ -250,6 +278,86 @@ impl Store {
             instructions: HANDOFF_INSTRUCTIONS,
         })
     }
+}
+
+impl Store {
+    /// Records the end of `turn.host`'s latest turn, replacing the previous one.
+    /// The message is cut to [`TURN_MESSAGE_BYTES`] and redacted; `at` is set here.
+    pub fn record_turn(&mut self, turn: &Turn) -> Result<Turn, StoreError> {
+        let host = turn.host.trim();
+        let valid = !host.is_empty()
+            && host.len() <= 32
+            && host
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');
+        if !valid {
+            return Err(CoreError::UnknownValue {
+                field: "host (use 1-32 chars of a-z 0-9 -)",
+                value: turn.host.clone(),
+            }
+            .into());
+        }
+        let last_message = match turn.last_message.as_deref().map(str::trim) {
+            Some(text) if !text.is_empty() => {
+                Some(rekora_core::redact::redact(cut(text, TURN_MESSAGE_BYTES)).0)
+            }
+            _ => None,
+        };
+        let stored = Turn {
+            host: host.to_owned(),
+            at: now(),
+            branch: turn.branch.clone(),
+            commit: turn.commit.clone(),
+            last_message,
+            uncommitted: turn
+                .uncommitted
+                .iter()
+                .take(TURN_MAX_FILES)
+                .map(|l| rekora_core::redact::redact(cut(l, 512)).0)
+                .collect(),
+        };
+        self.conn.execute(
+            "INSERT INTO meta (key, value) VALUES (?1, ?2)
+             ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+            params![
+                format!("turn:{host}"),
+                serde_json::to_string(&stored).unwrap_or_default()
+            ],
+        )?;
+        Ok(stored)
+    }
+
+    /// The most recent turn recorded by any host, if any.
+    pub fn last_turn(&self) -> Result<Option<Turn>, StoreError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT value FROM meta WHERE key LIKE 'turn:%'")?;
+        let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
+        let mut latest: Option<Turn> = None;
+        for value in rows {
+            // A row this version cannot read is skipped, not fatal: it only
+            // loses a hint, never memory.
+            let Ok(turn) = serde_json::from_str::<Turn>(&value?) else {
+                continue;
+            };
+            if latest.as_ref().is_none_or(|l| turn.at > l.at) {
+                latest = Some(turn);
+            }
+        }
+        Ok(latest)
+    }
+}
+
+/// Longest prefix of `text` within `max` bytes, on a char boundary.
+fn cut(text: &str, max: usize) -> &str {
+    if text.len() <= max {
+        return text;
+    }
+    let mut end = max;
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    &text[..end]
 }
 
 fn read_task(r: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {

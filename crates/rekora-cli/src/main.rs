@@ -10,6 +10,7 @@
 
 mod adapters;
 mod bench;
+mod hook;
 mod mcp;
 mod mcp_http;
 mod project;
@@ -107,6 +108,16 @@ enum Command {
     Agent(AgentCommand),
     /// Check the installation, store and adapters; never modifies anything.
     Doctor,
+    /// Host lifecycle hook (see `agent install claude-hooks|codex-hooks`). Reads the
+    /// host's JSON payload on stdin and always exits 0 so it cannot break the host.
+    Hook {
+        /// Lifecycle event.
+        #[arg(value_enum)]
+        event: hook::HookEvent,
+        /// Host reporting the event.
+        #[arg(long, default_value = "agent")]
+        host: String,
+    },
     /// Model Context Protocol server.
     #[command(subcommand)]
     Mcp(McpCommand),
@@ -456,6 +467,13 @@ fn run(cli: Cli) -> Result<ExitCode> {
                     )
                 }
             });
+            Ok(ExitCode::SUCCESS)
+        }
+        Command::Hook { event, host } => {
+            match hook::run(event, &host, &start, std::io::stdin().lock()) {
+                Ok(text) => print!("{text}"),
+                Err(e) => eprintln!("rekora hook: {e:#}"),
+            }
             Ok(ExitCode::SUCCESS)
         }
         Command::Task(cmd) => task(&Project::discover(&start)?, cmd, out),

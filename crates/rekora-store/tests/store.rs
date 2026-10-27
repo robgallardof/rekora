@@ -805,3 +805,61 @@ fn r13_import_rejects_hostile_entries_without_partial_writes() {
         "invalid_import"
     );
 }
+
+#[test]
+fn turns_keep_the_latest_per_host_bounded_and_redacted() {
+    let dir = tempfile::tempdir().unwrap();
+    let database = dir.path().join("rekora.db");
+    let (mut store, _) = Store::init(&database).unwrap();
+    assert_eq!(store.last_turn().unwrap(), None);
+
+    let turn = |host: &str, message: &str| rekora_store::Turn {
+        host: host.into(),
+        at: String::new(),
+        branch: Some("main".into()),
+        commit: None,
+        last_message: Some(message.into()),
+        uncommitted: (0..80).map(|i| format!(" M src/f{i}.rs")).collect(),
+    };
+    let first = store
+        .record_turn(&turn(
+            "codex",
+            "Wrote the parser; password=hunter2222 in .env",
+        ))
+        .unwrap();
+    assert!(
+        !first
+            .last_message
+            .as_deref()
+            .unwrap()
+            .contains("hunter2222")
+    );
+    assert_eq!(first.uncommitted.len(), rekora_store::TURN_MAX_FILES);
+    std::thread::sleep(std::time::Duration::from_millis(5));
+    let long = "ñ".repeat(rekora_store::TURN_MESSAGE_BYTES);
+    let second = store.record_turn(&turn("claude", &long)).unwrap();
+    assert!(second.last_message.as_deref().unwrap().len() <= rekora_store::TURN_MESSAGE_BYTES);
+
+    // Latest across hosts, surviving a reopen; one row per host, not per turn.
+    std::thread::sleep(std::time::Duration::from_millis(5));
+    store
+        .record_turn(&turn("codex", "Second codex turn"))
+        .unwrap();
+    drop(store);
+    let store = Store::open(&database).unwrap();
+    let last = store.last_turn().unwrap().unwrap();
+    assert_eq!(last.host, "codex");
+    assert_eq!(last.last_message.as_deref(), Some("Second codex turn"));
+    let rows: i64 = rusqlite::Connection::open(&database)
+        .unwrap()
+        .query_row(
+            "SELECT count(*) FROM meta WHERE key LIKE 'turn:%'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(rows, 2);
+
+    let mut store = store;
+    assert!(store.record_turn(&turn("Bad Host", "x")).is_err());
+}

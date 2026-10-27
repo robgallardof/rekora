@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Automatic handoff when an agent stops without warning (out of credits, crash, closed):
+  `rekora agent install claude-hooks|codex-hooks` adds user-wide `SessionStart` and `Stop` hooks.
+  `rekora hook stop` records the latest turn per host (branch, commit, redacted last-message excerpt,
+  uncommitted files); `rekora hook session-start` briefs the next agent with unfinished tasks, that turn
+  and the uncommitted changes. Hooks are silent outside a Rekora project and always exit 0.
+
+### Changed
+- MCP server instructions ask agents to call `task_update` after each meaningful step, not only at the end.
+
 ## 0.1.0 — 2026-10-26
 
 First tagged release (`v0.1.0`). The release workflow builds Windows, Linux and macOS (x86_64 and

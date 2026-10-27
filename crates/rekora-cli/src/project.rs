@@ -105,6 +105,19 @@ impl Project {
         (branch, commit)
     }
 
+    /// `git status --porcelain` lines of the checkout: work an agent left
+    /// uncommitted. Empty outside Git or when the tree is clean.
+    pub fn uncommitted(&self) -> Vec<String> {
+        git_raw(&self.checkout, &["status", "--porcelain=v1"])
+            .map(|out| {
+                out.lines()
+                    .filter(|l| !l.trim().is_empty())
+                    .map(str::to_owned)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     /// Snapshot key for the code index: branch, `detached@<sha12>`, or
     /// `worktree` outside Git.
     pub fn snapshot(&self) -> String {
@@ -134,6 +147,13 @@ fn main_worktree(checkout: &Path) -> Option<PathBuf> {
 
 /// Runs `git -C dir <args>` and returns trimmed stdout on success.
 fn git(dir: &Path, args: &[&str]) -> Option<String> {
+    let text = git_raw(dir, args)?.trim().to_owned();
+    (!text.is_empty()).then_some(text)
+}
+
+/// Runs `git -C dir <args>` and returns stdout untouched (porcelain output
+/// starts with significant spaces).
+fn git_raw(dir: &Path, args: &[&str]) -> Option<String> {
     let output = Command::new("git")
         .arg("-C")
         .arg(dir)
@@ -145,8 +165,7 @@ fn git(dir: &Path, args: &[&str]) -> Option<String> {
     if !output.status.success() {
         return None;
     }
-    let text = String::from_utf8(output.stdout).ok()?.trim().to_owned();
-    (!text.is_empty()).then_some(text)
+    String::from_utf8(output.stdout).ok()
 }
 
 /// Canonicalises without the Windows `\\?\` verbatim prefix when it is not

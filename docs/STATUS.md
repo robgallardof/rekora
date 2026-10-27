@@ -11,6 +11,23 @@
 
 Format from `planning/REKORA_IMPLEMENTATION_PLAN.md` ("Execution report template").
 
+## Automatic handoff hooks — 2026-10-27
+
+- Problem: a handoff only existed if the agent called `handoff_create` before stopping. An agent cut off
+  by a usage limit or a crash left nothing, so the next agent started blind.
+- Added `rekora hook session-start|stop` and the `claude-hooks` / `codex-hooks` adapters (user-wide,
+  dry-run by default, backup, foreign handlers preserved, owned-handler uninstall). The latest turn per
+  host is stored in `meta` (no schema migration). MCP instructions now ask for `task_update` after each step.
+- EXECUTED: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`,
+  `cargo test --workspace` (existing opt-in host/model tests remain ignored).
+- EXECUTED: new store test (latest turn per host, bounded, redacted, survives reopen); adapter unit tests
+  (RepoRinse-style foreign hooks kept, byte-identical re-install, exact round-trip, quoting, decoded
+  `-EncodedCommand`); E2E `s18` (agent A cut off after a turn, agent B briefed and resumes over MCP),
+  `s19` (silent, exit 0 outside a project and on bad input), `s20` (installed handlers executed exactly as
+  written: exec form, and `cmd` → `powershell -EncodedCommand` on Windows 11).
+- NOT EXECUTED: a live Claude Code or Codex session firing these hooks; whether either host fires `Stop`
+  when it hits a usage limit; Linux/macOS until CI runs.
+
 ## Header-matched closing signature — 2026-10-26
 
 - The RG closing banner now shares the cover's full-width canvas, gradient palette,

@@ -16,8 +16,34 @@ rekora agent uninstall codex --confirm    # removes only the `rekora` entry
 | DeepSeek Harness | `<checkout>/.dsh/rekora.cordis.yml` | project | **Real MCP runtime checked** 0.2.1-rc.2 | official runtime discovers 9 tools and executes `status` against temporary SQLite; model inference NOT EXECUTED |
 | Any other MCP client (Cursor, Gemini CLI, Antigravity, Hermes …) | Configure `rekora mcp serve --stdio` manually | — | Contract-tested only (real JSON-RPC client in tests) | — |
 
-Not implemented: lifecycle hooks (auto-capture, session start injection) for any host. Hosts differ in hook
-contracts and MCP alone does not provide them; agents call `context`/`handoff_resume` explicitly instead.
+## Lifecycle hooks (automatic handoff)
+
+A manual handoff only exists if the agent writes it before it stops. An agent that runs out of credits,
+crashes or is closed never gets that chance. Two hook adapters cover that case for Claude Code and Codex:
+
+```bash
+rekora agent install claude-hooks --confirm   # $CLAUDE_CONFIG_DIR/settings.json (default ~/.claude), user-wide
+rekora agent install codex-hooks --confirm    # $CODEX_HOME/hooks.json (default ~/.codex), user-wide
+```
+
+| Event | Runs | Effect |
+|---|---|---|
+| `Stop` (end of every turn) | `rekora hook stop --host <agent>` | Records the latest turn per host in `meta` (`turn:<host>`): branch, commit, a redacted excerpt of the last message (≤ 1500 bytes) and up to 50 `git status` lines. Prints nothing. |
+| `SessionStart` | `rekora hook session-start --host <agent>` | Prints a briefing that the host adds to the new agent's context: unfinished tasks (≤ 5), the last recorded turn and uncommitted changes. Prints nothing when there are no unfinished tasks and the tree is clean. |
+
+- Claude uses the exec form (`command` + `args`, no shell). Codex gets a quoted POSIX `command` and a
+  `commandWindows` that runs `powershell.exe -EncodedCommand`. The payload is read from stdin, never put in
+  the command. Codex asks you to review and trust new hooks in `/hooks`.
+- The hooks are user-wide on purpose: outside a Rekora project they print nothing. Every failure is written
+  to stderr with exit code 0, so a hook can never block or break the host.
+- Other tools' handlers in the same file (for example RepoRinse) are kept. The safety guarantees below apply
+  as well: dry run, backup, byte-identical re-install, and uninstall that removes only Rekora's handlers.
+- Limits: `Stop` fires when a turn ends. If a session dies in the middle of a turn, the record from the
+  previous turn remains, and the uncommitted changes in the briefing show what was edited after it. Whether a
+  host fires `Stop` when it hits a usage limit has NOT been verified.
+- Tested: `rekora hook` end to end with the compiled binary (`s18`, `s19`), and the installed handlers run
+  exactly as written in the hooks file (`s20`: exec form, and `cmd` → `powershell -EncodedCommand` on Windows).
+  A live session of either host firing the hooks: NOT EXECUTED.
 
 ## How the server finds the project
 
