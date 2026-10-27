@@ -2,6 +2,18 @@
 
 Format from `planning/REKORA_IMPLEMENTATION_PLAN.md` ("Execution report template").
 
+## README reading rhythm and motion correction — 2026-10-26
+
+- Removed progress-like animated overlays from icons, separators, diagrams, terminals and signatures.
+- Native Markdown headings and feature prose now wrap at the reader's font size; redundant divider images are gone.
+- The compact RG signature stays centered and static. Only the cover background has a slow continuous opacity loop;
+  labels and geometry do not move, and reduced motion disables the loop.
+- EXECUTED: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`,
+  `cargo test --workspace` (existing opt-in host/model tests remain ignored).
+- EXECUTED: local references/SVG audit and browser layout checks; browser verified the background still running
+  after 20 seconds and no text animations, plus reduced-motion suppression.
+- NOT EXECUTED for this presentation correction: provider inference, Docker smoke and benchmarks.
+
 ## README layout, owner signature and Archify — 2026-10-26
 
 - Reordered the English and Spanish READMEs from purpose and quickstart to advanced reference.

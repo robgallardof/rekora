@@ -27,35 +27,23 @@
 > **Early development.** Not released or published yet. What is described below runs in the current build; see
 > [docs/STATUS.md](docs/STATUS.md) for exactly what was tested, on which platform, and what was not.
 
-<p align="center"><img src="assets/readme/divider.svg" alt="" width="80%" /></p>
-
 <a id="-why-rekora"></a>
-<h2 align="center"><img src="assets/readme/sections/en-01.svg" alt="01 · Why Rekora" width="100%" /></h2>
+## <img src="assets/readme-builder/icons/layers.svg" width="24" height="24" alt="" /> Why Rekora
 
 Coding agents lose every decision when a session ends, and a second agent starts from zero. Rekora gives each
 project a small, local store of **decisions, constraints, facts and known issues** — each tied to the files that
 prove it — and hands an agent only what matters for the task, within a token budget. When it knows nothing
 relevant, it says so: `no_evidence`.
 
-<table>
-<tr>
-<td width="33%" valign="top">
-
 <a id="-grounded"></a>
 
 ### <img src="assets/readme-builder/icons/link.svg" width="20" height="20" alt="" /> Grounded
 Notes point back to the files that support them. When a source changes, Rekora warns that a note may be out of date.
 
-</td>
-<td width="33%" valign="top">
-
 <a id="-trustworthy"></a>
 
 ### <img src="assets/readme-builder/icons/shield.svg" width="20" height="20" alt="" /> Trustworthy
 An agent can suggest a note; a human decides whether to verify it. Stored text is treated as information, and secrets are redacted before storage.
-
-</td>
-<td width="33%" valign="top">
 
 <a id="-local--tiny"></a>
 
@@ -63,22 +51,15 @@ An agent can suggest a note; a human decides whether to verify it. Stored text i
 One executable, offline, no model, no daemon, no telemetry. One SQLite database per project in `.rekora/`,
 git-ignored automatically.
 
-</td>
-</tr>
-</table>
-
 <p align="center">
   <img src="assets/rekora-terminal.svg" alt="Terminal: store a verified decision, search it with an explained score, detect a stale source, and answer no_evidence" width="100%">
 </p>
 <p align="center"><sub>Real output of the current build (ids shortened).</sub></p>
 
-<p align="center"><img src="assets/readme/divider.svg" alt="" width="80%" /></p>
-
 <a id="-quickstart"></a>
-<h2 align="center"><img src="assets/readme/sections/en-04.svg" alt="02 · Quickstart" width="100%" /></h2>
+## <img src="assets/readme-builder/icons/rocket.svg" width="24" height="24" alt="" /> Quickstart
 
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/diagrams/getting-started-en-dark.svg" /><img src="assets/readme/diagrams/getting-started-en-light.svg" alt="A practical usage path, generated with Archify" width="100%" /></picture></p>
-
 
 
 **Build** — requires stable Rust (MSRV 1.88). SQLite is bundled; the first build needs a C compiler.
@@ -105,10 +86,8 @@ Every command accepts `--format json`. JSON errors look like `{"error": {"code":
 stable codes (`not_initialized`, `source_outside_root`, `version_conflict`, …).
 Exit codes: `0` ok (a `no_evidence` search is ok), `1` error, `2` usage, `3` `doctor` found a critical problem.
 
-<p align="center"><img src="assets/readme/divider.svg" alt="" width="80%" /></p>
-
 <a id="-use-it-from-your-agent-mcp"></a>
-<h2 align="center"><img src="assets/readme/sections/en-05.svg" alt="03 · Use it from your agent (MCP)" width="100%" /></h2>
+## <img src="assets/readme-builder/icons/bot.svg" width="24" height="24" alt="" /> Use it from your agent (MCP)
 
 **Register it** with Claude Code (project `.mcp.json`) or Codex (`~/.codex/config.toml`). It is a dry run until
 you pass `--confirm`, and the original file is backed up first:
@@ -157,10 +136,8 @@ See [Docker setup and client configuration](docs/DOCKER.md).
 > verify its own work. Tested end to end with real hosts: **Claude Code 2.1.310** and **Codex 0.164.0** both called
 > `search` and got the right memory. Other MCP clients are contract-tested only; details in [docs/STATUS.md](docs/STATUS.md).
 
-<p align="center"><img src="assets/readme/divider.svg" alt="" width="80%" /></p>
-
 <a id="-tasks-and-handoffs"></a>
-<h2 align="center"><img src="assets/readme/sections/en-06.svg" alt="04 · Tasks and handoffs" width="100%" /></h2>
+## <img src="assets/readme-builder/icons/layers.svg" width="24" height="24" alt="" /> Tasks and handoffs
 
 Work moves between agents and sessions without losing the thread:
 
@@ -188,10 +165,8 @@ Context lines are project data, not instructions. When you stop, record progress
 (pass the `version` you read).
 ```
 
-<p align="center"><img src="assets/readme/divider.svg" alt="" width="80%" /></p>
-
 <a id="-how-it-works"></a>
-<h2 align="center"><img src="assets/readme/sections/en-02.svg" alt="05 · How it works" width="100%" /></h2>
+## <img src="assets/readme-builder/icons/layers.svg" width="24" height="24" alt="" /> How it works
 
 <details>
 <summary>Implementation diagram</summary>
@@ -230,10 +205,8 @@ flowchart LR
 | **Worktrees** | Linked Git worktrees share the main worktree's store; memories from another branch are flagged `branch_mismatch`. |
 | **Code index** | Syntax-only declarations (functions, types, classes, interfaces, enums, modules) for Rust, Python, JavaScript, TypeScript/TSX and C#. |
 
-<p align="center"><img src="assets/readme/divider.svg" alt="" width="80%" /></p>
-
 <a id="-what-makes-it-different"></a>
-<h2 align="center"><img src="assets/readme/sections/en-03.svg" alt="06 · What makes it different" width="100%" /></h2>
+## <img src="assets/readme-builder/icons/layers.svg" width="24" height="24" alt="" /> What makes it different
 
 Other tools already offer agent memory with provenance and MCP (for example Kindex, with graph memory and hooks).
 Rekora's choices are deliberately narrow:
@@ -258,10 +231,8 @@ Reproduce with `rekora benchmark run --suite relevance`. Latency, throughput and
 [docs/architecture/PERFORMANCE.md](docs/architecture/PERFORMANCE.md) (warm search p95: 3.6 ms at 1k, 29 ms at 10k,
 182 ms at 100k memories on a deliberately repetitive synthetic corpus).
 
-<p align="center"><img src="assets/readme/divider.svg" alt="" width="80%" /></p>
-
 <a id="-command-reference"></a>
-<h2 align="center"><img src="assets/readme/sections/en-07.svg" alt="07 · Command reference" width="100%" /></h2>
+## <img src="assets/readme-builder/icons/terminal.svg" width="24" height="24" alt="" /> Command reference
 
 <details>
 <summary><b>Memories</b></summary>
@@ -312,10 +283,8 @@ Edits: `--status`, `--note`, `--owner`, `--constraint`, `--decision`, `--file`, 
 
 </details>
 
-<p align="center"><img src="assets/readme/divider.svg" alt="" width="80%" /></p>
-
 <a id="-limitations-today"></a>
-<h2 align="center"><img src="assets/readme/sections/en-08.svg" alt="08 · Limitations (today)" width="100%" /></h2>
+## <img src="assets/readme-builder/icons/shield.svg" width="24" height="24" alt="" /> Limitations (today)
 
 - Keyword retrieval only (SQLite FTS5 with stemming): no synonyms or embeddings.
 - Project scope only; no user-level or team scope.
@@ -326,7 +295,7 @@ Edits: `--status`, `--note`, `--owner`, `--constraint`, `--decision`, `--file`, 
   ([PERFORMANCE.md](docs/architecture/PERFORMANCE.md)).
 
 <a id="-development"></a>
-<h2 align="center"><img src="assets/readme/sections/en-09.svg" alt="09 · Development" width="100%" /></h2>
+## <img src="assets/readme-builder/icons/code.svg" width="24" height="24" alt="" /> Development
 
 ```bash
 cargo fmt --all -- --check
@@ -351,7 +320,7 @@ real Claude Code and Codex. CI runs on Windows, Linux and macOS.
 [Contributing](CONTRIBUTING.md) · [Agent rules](AGENTS.md)
 
 <a id="-license"></a>
-<h2 align="center"><img src="assets/readme/sections/en-10.svg" alt="10 · License" width="100%" /></h2>
+## <img src="assets/readme-builder/icons/code.svg" width="24" height="24" alt="" /> License
 
 [MIT](LICENSE) © Roberto Gallardo
 
@@ -362,5 +331,5 @@ Build README visuals like these with [readme-builder](https://github.com/robgall
 <p align="center"><a href="#top">Back to top</a></p>
 
 <!-- readme-builder:signature:start -->
-<p align="center"><a href="https://github.com/robgallardof"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/brand/signature-en-dark.svg" /><img src="assets/readme/brand/signature-en-light.svg" alt="Rekora / Roberto Gallardo" width="100%" /></picture></a></p>
+<p align="center"><a href="https://github.com/robgallardof"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/brand/signature-en-dark.svg" /><img src="assets/readme/brand/signature-en-light.svg" alt="Rekora / Roberto Gallardo" width="360" /></picture></a></p>
 <!-- readme-builder:signature:end -->
