@@ -2,6 +2,16 @@
 
 Format from `planning/REKORA_IMPLEMENTATION_PLAN.md` ("Execution report template").
 
+## Header-matched closing signature — 2026-10-26
+
+- The RG closing banner now shares the cover's full-width canvas, gradient palette,
+  rounded frame, large logo and text hierarchy. The existing headers are unchanged.
+- Footers remain static; no loading traces or new motion were introduced.
+- EXECUTED: local SVG/reference audit and light/dark visual inspection.
+- EXECUTED: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`,
+  `cargo test --workspace` (existing opt-in host/model tests remain ignored).
+- NOT EXECUTED for this presentation-only update: provider inference, Docker smoke and benchmarks.
+
 ## README reading rhythm and motion correction — 2026-10-26
 
 - Removed progress-like animated overlays from icons, separators, diagrams, terminals and signatures.

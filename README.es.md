@@ -333,5 +333,5 @@ Crea recursos visuales como estos con [readme-builder](https://github.com/robgal
 <p align="center"><a href="#top">Volver al inicio</a></p>
 
 <!-- readme-builder:signature:start -->
-<p align="center"><a href="https://github.com/robgallardof"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/brand/signature-es-dark.svg" /><img src="assets/readme/brand/signature-es-light.svg" alt="Rekora / Roberto Gallardo" width="360" /></picture></a></p>
+<p align="center"><a href="https://github.com/robgallardof"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/brand/signature-es-dark.svg" /><img src="assets/readme/brand/signature-es-light.svg" alt="Rekora / Roberto Gallardo" width="100%" /></picture></a></p>
 <!-- readme-builder:signature:end -->
