@@ -29,7 +29,7 @@ Dependency direction: cli → code → store → core. Never the reverse; core n
 7. Never edit agent configuration implicitly. Adapters are dry-run by default, write only with
    `--confirm`, back up first and are reversible; user-wide files (Codex) say so in the plan.
 8. Keep diffs small; no speculative crates, traits or feature flags without a second real user.
-9. Commit messages: detailed, in Spanish. No co-author trailers.
+9. Commit messages: detailed, in English. No co-author trailers.
 10. Any new query on `memories` must be checked with `EXPLAIN QUERY PLAN` at 10k+ rows (ADR-0003).
 
 ## Before you finish
@@ -41,3 +41,10 @@ cargo test --workspace
 ```
 
 Then update `docs/STATUS.md` with what changed, what ran and what did not.
+
+## Commit language
+
+All new Git commit subjects and bodies must be written in English, including merge
+and squash messages. Keep the repository's existing message conventions.
+This applies to all contributors and coding agents, and only to new commits.
+Do not rewrite existing history to translate commit messages.

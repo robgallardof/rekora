@@ -1,5 +1,14 @@
 # Rekora — milestone status
 
+## English commit policy — 2026-10-27
+
+- New commit subjects and bodies, including merge and squash messages, must be in English.
+  `AGENTS.md`, `CONTRIBUTING.md` and the Claude entry point agree; existing history is preserved.
+- EXECUTED: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`,
+  and `cargo test --workspace -j 2` (PASS). The first parallel test build exited while compiling
+  `blake3`; the bounded retry passed without source changes.
+- NOT EXECUTED for this documentation-only change: Docker, credentialed host/model probes or benchmarks.
+
 Format from `planning/REKORA_IMPLEMENTATION_PLAN.md` ("Execution report template").
 
 ## Header-matched closing signature — 2026-10-26
