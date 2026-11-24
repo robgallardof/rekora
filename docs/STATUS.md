@@ -11,6 +11,24 @@
 
 Format from `planning/REKORA_IMPLEMENTATION_PLAN.md` ("Execution report template").
 
+## Agent-efficiency research — 2026-11-24
+
+- Research only: no source, dependency, crate or schema change. Seven new files in `docs/research/`
+  (`AGENT_EFFICIENCY_RESEARCH.md` is the entry point) plus pre-registered hypotheses H10–H17 in
+  `DECISION_LOG.md`. Proposals await architectural approval.
+- Findings about the current code: Claude Code fires `StopFailure` instead of `Stop` on API-error
+  stops (usage limits), so the failing turn is not recorded; turns are not session-scoped and have no
+  freshness bound (a month-old turn from another project's session produced a false briefing here);
+  `handoff_resume` claims are last-writer-wins. The same stored turn is the first observed evidence that
+  a live Claude Code session fires Rekora's `Stop` hook (previously NOT EXECUTED).
+- EXECUTED: hook/process latency breakdown on Windows 11 with the installed v0.1.0 binary (30 runs):
+  `rekora --version` 22/41 ms p50/p95, `git status` 57/122 ms, `hook session-start` 138/171 ms.
+- EXECUTED: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`,
+  `cargo test --workspace` — all passed, 0 failed, 3 ignored (the two opt-in real-host tests and the
+  `process_worker` helper, as before).
+- NOT EXECUTED: every benchmark in `BENCHMARK_DESIGN.md` (B0–B5); no external system or paper result
+  was reproduced; all external numbers are as reported by their sources.
+
 ## Automatic handoff hooks — 2026-10-27
 
 - Problem: a handoff only existed if the agent called `handoff_create` before stopping. An agent cut off
