@@ -10,12 +10,14 @@
 //! - protocol adapters (CLI, MCP) live in `rekora-cli`.
 
 pub mod budget;
+pub mod effort;
 pub mod error;
 pub mod memory;
 pub mod query;
 pub mod redact;
 pub mod source;
 pub mod task;
+pub mod usage;
 
 pub use error::CoreError;
 pub use memory::{MemoryKind, MemoryStatus, NewMemory, Origin};

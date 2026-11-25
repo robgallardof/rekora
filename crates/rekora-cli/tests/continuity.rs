@@ -1311,3 +1311,283 @@ fn b0_rekora_overhead_stays_within_budget() {
         estimate(&brief)
     );
 }
+
+/// A Claude Code transcript line with one response's usage.
+fn claude_usage_line(request: &str, model: &str, cache_read: u64, output: u64) -> String {
+    json!({
+        "type": "assistant",
+        "requestId": request,
+        "message": { "model": model, "usage": {
+            "input_tokens": 10, "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": cache_read, "output_tokens": output
+        }}
+    })
+    .to_string()
+}
+
+#[test]
+fn s24_usage_is_read_from_the_host_transcript_and_attributed_to_the_active_task() {
+    let dir = tempfile::tempdir().unwrap();
+    repo_at(dir.path());
+    ok(dir.path(), &["init"]);
+    ok(
+        dir.path(),
+        &[
+            "task",
+            "create",
+            "auth-jwt",
+            "--objective",
+            "Move login to JWT",
+            "--status",
+            "in_progress",
+        ],
+    );
+    let transcript = dir.path().join("session.jsonl");
+    std::fs::write(
+        &transcript,
+        claude_usage_line("r1", "claude-opus-5-5", 1_000_000, 10_000),
+    )
+    .unwrap();
+    let stop = |message: &str| json!({ "cwd": dir.path(), "session_id": "s1", "transcript_path": transcript, "last_assistant_message": message });
+    hook_json(dir.path(), "stop", "claude", &stop("turn one"));
+    // A second turn adds a response; only the growth is added to the task.
+    let both = [
+        claude_usage_line("r1", "claude-opus-5-5", 1_000_000, 10_000),
+        claude_usage_line("r2", "claude-opus-5-5", 1_000_000, 10_000),
+    ]
+    .join("\n");
+    std::fs::write(&transcript, both).unwrap();
+    hook_json(dir.path(), "stop", "claude", &stop("turn two"));
+    hook_json(dir.path(), "stop", "claude", &stop("turn two again"));
+
+    let report = ok(dir.path(), &["usage"]);
+    let task = &report["tasks"][0];
+    assert_eq!(task["task"], "auth-jwt", "{report}");
+    assert_eq!(task["usage"]["requests"], 2, "{report}");
+    assert_eq!(task["usage"]["cache_read"], 2_000_000);
+    // Opus 5.5: 2M cache reads at $0.20/M + 20K output at $20/M + 20 input at $4/M.
+    let usd = task["usage"]["estimate_usd"].as_f64().unwrap();
+    assert!((usd - (0.40 + 0.40 + 0.00008)).abs() < 1e-6, "{usd}");
+    assert_eq!(report["sessions"][0]["host"], "claude");
+    assert!(report["prices_as_of"].is_string());
+
+    // The status line shows the task and the session, labelled as an estimate.
+    let line = hook(
+        dir.path(),
+        &["statusline"],
+        &json!({ "session_id": "s1", "transcript_path": transcript, "workspace": { "current_dir": dir.path() } }).to_string(),
+        &[],
+    );
+    let line = String::from_utf8(line.stdout).unwrap();
+    assert!(line.contains("task auth-jwt ~$0.80"), "{line}");
+    assert!(
+        line.contains("session ~$0.80") && line.contains("API est."),
+        "{line}"
+    );
+    // Never an error on a status line.
+    let empty = hook(dir.path(), &["statusline"], "not json", &[]);
+    assert!(empty.status.success());
+}
+
+#[test]
+fn s25_more_hosts_get_a_project_mcp_entry_bound_to_the_project() {
+    let dir = tempfile::tempdir().unwrap();
+    repo_at(dir.path());
+    ok(dir.path(), &["init"]);
+    // Gemini's settings file usually has other settings: they must survive.
+    std::fs::create_dir_all(dir.path().join(".gemini")).unwrap();
+    std::fs::write(
+        dir.path().join(".gemini/settings.json"),
+        "{\n  \"theme\": \"dark\"\n}\n",
+    )
+    .unwrap();
+    for (host, file) in [
+        ("cursor", ".cursor/mcp.json"),
+        ("kiro", ".kiro/settings/mcp.json"),
+        ("roo", ".roo/mcp.json"),
+        ("factory", ".factory/mcp.json"),
+        ("gemini", ".gemini/settings.json"),
+        ("qwen", ".qwen/settings.json"),
+    ] {
+        let dry = ok(dir.path(), &["agent", "install", host]);
+        assert_eq!(dry["applied"], false, "{host}: {dry}");
+        let done = ok(dir.path(), &["agent", "install", host, "--confirm"]);
+        assert_eq!(done["applied"], true, "{host}: {done}");
+        let doc: Value =
+            serde_json::from_slice(&std::fs::read(dir.path().join(file)).unwrap()).unwrap();
+        let entry = &doc["mcpServers"]["rekora"];
+        let args: Vec<&str> = entry["args"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|a| a.as_str().unwrap())
+            .collect();
+        assert_eq!(args[0], "--project", "{host}: {entry}");
+        assert_eq!(&args[2..], ["mcp", "serve", "--stdio"], "{host}");
+        assert!(entry.get("type").is_none(), "{host}: {entry}");
+        // The written entry really starts a working server.
+        let out = Command::new(entry["command"].as_str().unwrap())
+            .args(&args[..2])
+            .arg("status")
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "{host}: {out:?}");
+        let again = ok(dir.path(), &["agent", "install", host, "--confirm"]);
+        assert_eq!(again["plan"]["action"], "none", "{host}: {again}");
+        ok(dir.path(), &["agent", "uninstall", host, "--confirm"]);
+    }
+    let gemini: Value =
+        serde_json::from_slice(&std::fs::read(dir.path().join(".gemini/settings.json")).unwrap())
+            .unwrap();
+    assert_eq!(gemini["theme"], "dark");
+    assert!(gemini["mcpServers"].get("rekora").is_none());
+    assert!(!dir.path().join(".cursor/mcp.json").exists());
+    // JSONC is refused, not mangled.
+    std::fs::write(dir.path().join(".cursor/mcp.json"), "{ // mine\n}\n").ok();
+    std::fs::create_dir_all(dir.path().join(".cursor")).unwrap();
+    std::fs::write(dir.path().join(".cursor/mcp.json"), "{ // mine\n}\n").unwrap();
+    err_env(
+        dir.path(),
+        &["agent", "install", "cursor", "--confirm"],
+        &[],
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join(".cursor/mcp.json")).unwrap(),
+        "{ // mine\n}\n"
+    );
+}
+
+#[test]
+fn s26_tier_agents_are_written_owned_and_removed_without_touching_foreign_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let codex_home = tempfile::tempdir().unwrap();
+    repo_at(dir.path());
+    ok(dir.path(), &["init"]);
+    let env: [(&str, &Path); 1] = [("CODEX_HOME", codex_home.path())];
+    // Codex's own model cache decides which models are pinned.
+    std::fs::write(
+        codex_home.path().join("models_cache.json"),
+        json!({ "models": [
+            { "slug": "gpt-9-astra", "visibility": "list" },
+            { "slug": "gpt-9-sol", "visibility": "list" },
+            { "slug": "gpt-9-luna", "visibility": "list" },
+            { "slug": "gpt-8-luna", "visibility": "list" }
+        ]})
+        .to_string(),
+    )
+    .unwrap();
+    for family in ["claude-agents", "codex-agents", "antigravity-agents"] {
+        let done = ok_env(dir.path(), &["agent", "install", family, "--confirm"], &env);
+        assert_eq!(done["applied"], true, "{family}: {done}");
+    }
+    let read = |p: &str| std::fs::read_to_string(dir.path().join(p)).unwrap();
+    assert!(read(".claude/agents/rekora-light.md").contains("\nmodel: haiku\n"));
+    assert!(read(".claude/agents/rekora-deep.md").contains("\nmodel: opus\n"));
+    assert!(read(".agents/agents/rekora-deep.md").contains("\nmodel: pro\n"));
+    let codex: toml_edit::DocumentMut = read(".codex/agents/rekora-light.toml").parse().unwrap();
+    assert_eq!(codex["model"].as_str(), Some("gpt-9-luna"));
+    let listed = ok_env(dir.path(), &["agent", "list"], &env);
+    let row = listed
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["host"] == "claude-agents")
+        .unwrap();
+    assert!(
+        row["state"].as_str().unwrap().starts_with("installed"),
+        "{row}"
+    );
+
+    // A handoff names the tier and the delegate to use.
+    ok(
+        dir.path(),
+        &[
+            "task",
+            "create",
+            "fix-docs",
+            "--objective",
+            "Fix typo in README",
+            "--status",
+            "in_progress",
+        ],
+    );
+    let doc = ok(dir.path(), &["handoff", "resume", "--task", "fix-docs"]);
+    assert_eq!(doc["effort"]["tier"], "light", "{doc}");
+
+    // A same-named file the user wrote is never overwritten or removed.
+    for family in ["claude-agents", "codex-agents", "antigravity-agents"] {
+        ok_env(
+            dir.path(),
+            &["agent", "uninstall", family, "--confirm"],
+            &env,
+        );
+    }
+    assert!(!dir.path().join(".claude/agents/rekora-light.md").exists());
+    std::fs::write(
+        dir.path().join(".claude/agents/rekora-light.md"),
+        "my own agent\n",
+    )
+    .unwrap();
+    err_env(
+        dir.path(),
+        &["agent", "install", "claude-agents", "--confirm"],
+        &env,
+    );
+    ok_env(
+        dir.path(),
+        &["agent", "uninstall", "claude-agents", "--confirm"],
+        &env,
+    );
+    assert_eq!(read(".claude/agents/rekora-light.md"), "my own agent\n");
+}
+
+#[test]
+fn s27_status_line_is_installed_only_where_none_exists() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    repo_at(dir.path());
+    ok(dir.path(), &["init"]);
+    let env: [(&str, &Path); 1] = [("CLAUDE_CONFIG_DIR", home.path())];
+    let settings = home.path().join("settings.json");
+    std::fs::write(&settings, "{\n  \"model\": \"opus\"\n}\n").unwrap();
+    ok_env(
+        dir.path(),
+        &["agent", "install", "claude-statusline", "--confirm"],
+        &env,
+    );
+    let doc: Value = serde_json::from_slice(&std::fs::read(&settings).unwrap()).unwrap();
+    assert_eq!(doc["model"], "opus");
+    assert!(
+        doc["statusLine"]["command"]
+            .as_str()
+            .unwrap()
+            .ends_with(" statusline"),
+        "{doc}"
+    );
+    ok_env(
+        dir.path(),
+        &["agent", "uninstall", "claude-statusline", "--confirm"],
+        &env,
+    );
+    let doc: Value = serde_json::from_slice(&std::fs::read(&settings).unwrap()).unwrap();
+    assert!(
+        doc.get("statusLine").is_none() && doc["model"] == "opus",
+        "{doc}"
+    );
+    // Someone else's status line is not replaced.
+    std::fs::write(
+        &settings,
+        r#"{"statusLine": {"type": "command", "command": "my-line.sh"}}"#,
+    )
+    .unwrap();
+    err_env(
+        dir.path(),
+        &["agent", "install", "claude-statusline", "--confirm"],
+        &env,
+    );
+    assert!(
+        std::fs::read_to_string(&settings)
+            .unwrap()
+            .contains("my-line.sh")
+    );
+}

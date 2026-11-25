@@ -57,6 +57,20 @@ pub enum Host {
     ClaudeHooks,
     /// Codex lifecycle hooks (automatic handoff).
     CodexHooks,
+    /// Claude Code status line with the estimated cost of the task and session.
+    ClaudeStatusline,
+    /// Cursor (`.cursor/mcp.json`).
+    Cursor,
+    /// Kiro (`.kiro/settings/mcp.json`).
+    Kiro,
+    /// Roo Code (`.roo/mcp.json`).
+    Roo,
+    /// Factory droid (`.factory/mcp.json`).
+    Factory,
+    /// Gemini CLI (`.gemini/settings.json`).
+    Gemini,
+    /// Qwen Code (`.qwen/settings.json`).
+    Qwen,
 }
 
 impl std::str::FromStr for Host {
@@ -69,9 +83,16 @@ impl std::str::FromStr for Host {
             "deepseek" | "dsh" => Ok(Self::Deepseek),
             "claude-hooks" => Ok(Self::ClaudeHooks),
             "codex-hooks" => Ok(Self::CodexHooks),
+            "claude-statusline" => Ok(Self::ClaudeStatusline),
+            "cursor" => Ok(Self::Cursor),
+            "kiro" => Ok(Self::Kiro),
+            "roo" | "roo-code" => Ok(Self::Roo),
+            "factory" | "droid" => Ok(Self::Factory),
+            "gemini" | "gemini-cli" => Ok(Self::Gemini),
+            "qwen" | "qwen-code" => Ok(Self::Qwen),
             other => bail!(
-                "unknown agent `{other}`; supported: claude, codex, opencode, deepseek, \
-claude-hooks, codex-hooks"
+                "unknown agent `{other}`; supported: claude, codex, opencode, deepseek, cursor, \
+kiro, roo, factory, gemini, qwen, claude-hooks, codex-hooks, claude-statusline"
             ),
         }
     }
@@ -79,14 +100,30 @@ claude-hooks, codex-hooks"
 
 impl Host {
     /// All hosts with an adapter.
-    pub const ALL: [Host; 6] = [
+    pub const ALL: [Host; 13] = [
         Host::Claude,
         Host::Codex,
         Host::OpenCode,
         Host::Deepseek,
+        Host::Cursor,
+        Host::Kiro,
+        Host::Roo,
+        Host::Factory,
+        Host::Gemini,
+        Host::Qwen,
         Host::ClaudeHooks,
         Host::CodexHooks,
+        Host::ClaudeStatusline,
     ];
+
+    /// Project hosts whose file holds a plain `mcpServers.<name>` map
+    /// (documented by each host; see docs/research/AGENT_HOSTS.md).
+    fn is_mcp_servers_file(self) -> bool {
+        matches!(
+            self,
+            Self::Cursor | Self::Kiro | Self::Roo | Self::Factory | Self::Gemini | Self::Qwen
+        )
+    }
 
     /// Stable id.
     pub fn id(self) -> &'static str {
@@ -97,15 +134,29 @@ impl Host {
             Self::Deepseek => "deepseek",
             Self::ClaudeHooks => "claude-hooks",
             Self::CodexHooks => "codex-hooks",
+            Self::ClaudeStatusline => "claude-statusline",
+            Self::Cursor => "cursor",
+            Self::Kiro => "kiro",
+            Self::Roo => "roo",
+            Self::Factory => "factory",
+            Self::Gemini => "gemini",
+            Self::Qwen => "qwen",
         }
     }
 
     fn binary(self) -> &'static str {
         match self {
-            Self::Claude | Self::ClaudeHooks => "claude",
+            Self::Claude | Self::ClaudeHooks | Self::ClaudeStatusline => "claude",
             Self::Codex | Self::CodexHooks => "codex",
             Self::OpenCode => "opencode",
             Self::Deepseek => "dsh",
+            Self::Cursor => "cursor-agent",
+            Self::Kiro => "kiro",
+            // Roo Code is a VS Code extension without a CLI to ask.
+            Self::Roo => "",
+            Self::Factory => "droid",
+            Self::Gemini => "gemini",
+            Self::Qwen => "qwen",
         }
     }
 
@@ -124,7 +175,13 @@ impl Host {
             Self::Deepseek => Ok(project.checkout.join(".dsh/rekora.cordis.yml")),
             Self::Codex => Ok(codex_home()?.join("config.toml")),
             Self::CodexHooks => Ok(codex_home()?.join("hooks.json")),
-            Self::ClaudeHooks => {
+            Self::Cursor => Ok(project.checkout.join(".cursor/mcp.json")),
+            Self::Kiro => Ok(project.checkout.join(".kiro/settings/mcp.json")),
+            Self::Roo => Ok(project.checkout.join(".roo/mcp.json")),
+            Self::Factory => Ok(project.checkout.join(".factory/mcp.json")),
+            Self::Gemini => Ok(project.checkout.join(".gemini/settings.json")),
+            Self::Qwen => Ok(project.checkout.join(".qwen/settings.json")),
+            Self::ClaudeHooks | Self::ClaudeStatusline => {
                 let home = match std::env::var_os("CLAUDE_CONFIG_DIR") {
                     Some(dir) if !dir.is_empty() => PathBuf::from(dir),
                     _ => home_dir()
@@ -139,13 +196,24 @@ impl Host {
     /// `project` or `user`: how far the change reaches.
     pub fn scope(self) -> &'static str {
         match self {
-            Self::Claude | Self::OpenCode | Self::Deepseek => "project",
-            Self::Codex | Self::ClaudeHooks | Self::CodexHooks => "user",
+            Self::Claude
+            | Self::OpenCode
+            | Self::Deepseek
+            | Self::Cursor
+            | Self::Kiro
+            | Self::Roo
+            | Self::Factory
+            | Self::Gemini
+            | Self::Qwen => "project",
+            Self::Codex | Self::ClaudeHooks | Self::CodexHooks | Self::ClaudeStatusline => "user",
         }
     }
 
     /// Installed version from `<binary> --version`, if the host is on PATH.
     pub fn detected_version(self) -> Option<String> {
+        if self.binary().is_empty() {
+            return None;
+        }
         let out = Command::new(self.binary())
             .arg("--version")
             .stdin(Stdio::null())
@@ -179,6 +247,12 @@ impl Host {
             Self::CodexHooks => {
                 "implemented; SessionStart/Stop handlers; review and trust them in Codex /hooks"
             }
+            Self::ClaudeStatusline => {
+                "implemented; `statusLine` runs `rekora statusline` (estimated cost); refuses to replace another status line"
+            }
+            Self::Cursor | Self::Kiro | Self::Roo | Self::Factory | Self::Gemini | Self::Qwen => {
+                "implemented; documented project `mcpServers` file, launched with --project; real host NOT EXECUTED"
+            }
         }
     }
 }
@@ -193,6 +267,17 @@ pub struct Launch {
 }
 
 impl Launch {
+    /// The same launch, bound to `root` with `--project`: for hosts that do not
+    /// document starting MCP servers in the workspace directory.
+    pub fn with_project(&self, root: &Path) -> Self {
+        let mut args = vec!["--project".to_owned(), root.to_string_lossy().into_owned()];
+        args.extend(self.args.iter().cloned());
+        Self {
+            command: self.command.clone(),
+            args,
+        }
+    }
+
     /// Default launch: this executable's absolute path, discovering the
     /// project from the host's working directory at each call.
     pub fn current(command: Option<String>) -> Result<Self> {
@@ -252,11 +337,16 @@ pub fn plan_install(host: Host, project: &Project, launch: &Launch) -> Result<Pl
     let before = read_optional(&path)?;
     let (after, entry, existed_entry) = match host {
         Host::Claude => json_install(before.as_deref(), launch)?,
+        h if h.is_mcp_servers_file() => {
+            mcp_servers_install(before.as_deref(), &launch.with_project(&project.root))?
+        }
+        Host::ClaudeStatusline => statusline_install(before.as_deref(), launch)?,
         Host::Codex => toml_install(before.as_deref(), launch)?,
         Host::OpenCode | Host::Deepseek => {
             project_install(host, before.as_deref(), launch, project)?
         }
         Host::ClaudeHooks | Host::CodexHooks => hooks_install(host, before.as_deref(), launch)?,
+        _ => bail!("no installer for {}", host.id()),
     };
     let action = match (&before, existed_entry) {
         (Some(b), _) if *b == after => "none",
@@ -292,9 +382,12 @@ pub fn plan_uninstall(host: Host, project: &Project) -> Result<Plan> {
     };
     let (after, removed, now_empty) = match host {
         Host::Claude => json_uninstall(text)?,
+        h if h.is_mcp_servers_file() => json_uninstall(text)?,
+        Host::ClaudeStatusline => statusline_uninstall(text)?,
         Host::Codex => toml_uninstall(text)?,
         Host::OpenCode | Host::Deepseek => project_uninstall(host, text)?,
         Host::ClaudeHooks | Host::CodexHooks => hooks_uninstall(text)?,
+        _ => (text.to_owned(), false, false),
     };
     let created_by_us = load_state(project)?
         .installs
@@ -432,7 +525,18 @@ pub fn check(host: Host, project: &Project) -> Result<Option<String>> {
                     .map(str::to_owned)
             }
         }
-        Host::Claude => {
+        Host::ClaudeStatusline => {
+            let doc: Value = serde_json::from_str(&text)
+                .map_err(|e| anyhow!("{} is not valid JSON: {e}", path.display()))?;
+            return Ok(Some(match doc.get("statusLine") {
+                Some(line) if is_our_statusline(line) => {
+                    format!("{}: installed (rekora statusline)", path.display())
+                }
+                Some(_) => format!("{}: another status line is configured", path.display()),
+                None => format!("{}: not installed", path.display()),
+            }));
+        }
+        _ if host == Host::Claude || host.is_mcp_servers_file() => {
             let doc: Value = serde_json::from_str(&text)
                 .map_err(|e| anyhow!("{} is not valid JSON: {e}", path.display()))?;
             doc.get("mcpServers")
@@ -441,7 +545,7 @@ pub fn check(host: Host, project: &Project) -> Result<Option<String>> {
                 .and_then(Value::as_str)
                 .map(str::to_owned)
         }
-        Host::Codex => {
+        _ => {
             let doc: toml_edit::DocumentMut = text
                 .parse()
                 .map_err(|e| anyhow!("{} is not valid TOML: {e}", path.display()))?;
@@ -580,6 +684,98 @@ fn json_install(before: Option<&str>, launch: &Launch) -> Result<(String, Value,
         text = b.to_owned();
     }
     Ok((text, entry, existed))
+}
+
+/// A plain `mcpServers.rekora = {command, args}` entry (no `type`, which these
+/// hosts do not document), keeping every other key of the file.
+fn mcp_servers_install(before: Option<&str>, launch: &Launch) -> Result<(String, Value, bool)> {
+    let mut doc: Value = match before {
+        Some(text) if !text.trim().is_empty() => serde_json::from_str(text).map_err(|e| {
+            anyhow!(
+                "existing file is not plain JSON ({e}; comments are not supported); not modified"
+            )
+        })?,
+        _ => json!({}),
+    };
+    let root = doc
+        .as_object_mut()
+        .ok_or_else(|| anyhow!("existing file is not a JSON object; not modified"))?;
+    let servers = root
+        .entry("mcpServers")
+        .or_insert_with(|| json!({}))
+        .as_object_mut()
+        .ok_or_else(|| anyhow!("`mcpServers` is not an object; not modified"))?;
+    let existed = servers.contains_key(ENTRY);
+    let entry = json!({ "command": launch.command, "args": launch.args });
+    servers.insert(ENTRY.to_owned(), entry.clone());
+    let mut text = serde_json::to_string_pretty(&doc)?;
+    text.push('\n');
+    if let Some(b) = before
+        && serde_json::from_str::<Value>(b).ok().as_ref() == Some(&doc)
+    {
+        text = b.to_owned();
+    }
+    Ok((text, entry, existed))
+}
+
+// ---------------------------------------------------------- status line ----
+
+/// True for a `statusLine` Rekora wrote: a command running `rekora statusline`.
+fn is_our_statusline(line: &Value) -> bool {
+    line["command"]
+        .as_str()
+        .is_some_and(|c| c.contains("rekora") && c.trim_end().ends_with("statusline"))
+}
+
+fn statusline_entry(launch: &Launch) -> Value {
+    // Claude runs the status line command through a shell; quote the path.
+    json!({ "type": "command", "command": format!("\"{}\" statusline", launch.command) })
+}
+
+/// Sets Claude Code's `statusLine`, refusing to replace someone else's.
+fn statusline_install(before: Option<&str>, launch: &Launch) -> Result<(String, Value, bool)> {
+    let mut doc: Value = match before {
+        Some(text) if !text.trim().is_empty() => serde_json::from_str(text)
+            .map_err(|e| anyhow!("existing settings.json is not valid JSON ({e}); not modified"))?,
+        _ => json!({}),
+    };
+    let root = doc
+        .as_object_mut()
+        .ok_or_else(|| anyhow!("existing settings.json is not a JSON object; not modified"))?;
+    let existed = match root.get("statusLine") {
+        Some(line) if is_our_statusline(line) => true,
+        Some(_) => bail!(
+            "a status line is already configured in settings.json; not replaced. Remove it first, \
+or call `rekora statusline` from your own script"
+        ),
+        None => false,
+    };
+    let entry = statusline_entry(launch);
+    root.insert("statusLine".to_owned(), entry.clone());
+    let mut text = serde_json::to_string_pretty(&doc)?;
+    text.push('\n');
+    if let Some(b) = before
+        && serde_json::from_str::<Value>(b).ok().as_ref() == Some(&doc)
+    {
+        text = b.to_owned();
+    }
+    Ok((text, entry, existed))
+}
+
+fn statusline_uninstall(text: &str) -> Result<(String, bool, bool)> {
+    let mut doc: Value = serde_json::from_str(text)
+        .map_err(|e| anyhow!("existing settings.json is not valid JSON ({e}); not modified"))?;
+    let removed = match doc.as_object_mut() {
+        Some(root) if root.get("statusLine").is_some_and(is_our_statusline) => {
+            root.remove("statusLine");
+            true
+        }
+        _ => false,
+    };
+    let now_empty = doc.as_object().is_some_and(serde_json::Map::is_empty);
+    let mut out = serde_json::to_string_pretty(&doc)?;
+    out.push('\n');
+    Ok((out, removed, now_empty))
 }
 
 fn json_uninstall(text: &str) -> Result<(String, bool, bool)> {
@@ -897,7 +1093,8 @@ fn save_state(project: &Project, state: &State) -> Result<()> {
     write_atomic(&project.data_dir().join("adapters.json"), &text)
 }
 
-fn codex_home() -> Result<PathBuf> {
+/// `$CODEX_HOME`, default `~/.codex`.
+pub(crate) fn codex_home() -> Result<PathBuf> {
     Ok(match std::env::var_os("CODEX_HOME") {
         Some(dir) if !dir.is_empty() => PathBuf::from(dir),
         _ => home_dir()

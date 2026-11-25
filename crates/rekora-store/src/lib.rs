@@ -18,6 +18,7 @@ mod schema;
 mod search;
 mod tasks;
 mod transfer;
+mod usage;
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -40,6 +41,7 @@ pub use tasks::{
 pub use transfer::{
     EXPORT_FORMAT, ExportFile, ExportedMemory, ImportReport, MAX_IMPORT_BYTES, Rejected,
 };
+pub use usage::{SessionUsage, TaskUsage, USAGE_MAX_SESSIONS, total as usage_total};
 
 /// How long a writer waits for another process's write lock before failing.
 pub const BUSY_TIMEOUT: Duration = Duration::from_secs(10);

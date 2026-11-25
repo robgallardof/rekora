@@ -9,11 +9,13 @@
 //! critical problem.
 
 mod adapters;
+mod agents;
 mod bench;
 mod hook;
 mod mcp;
 mod mcp_http;
 mod project;
+mod usage;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -118,6 +120,17 @@ enum Command {
         #[arg(long, default_value = "agent")]
         host: String,
     },
+    /// Estimated token cost per task and per host session (API-equivalent list
+    /// prices; tokens come from the hosts' own transcripts via the Stop hook).
+    Usage {
+        /// Sessions to show.
+        #[arg(long, default_value_t = 10)]
+        limit: usize,
+    },
+    /// One status line for Claude Code's `statusLine` setting: reads the
+    /// host's JSON on stdin, prints the active task's and the session's
+    /// estimated cost. Always exits 0.
+    Statusline,
     /// Model Context Protocol server.
     #[command(subcommand)]
     Mcp(McpCommand),
@@ -476,6 +489,11 @@ fn run(cli: Cli) -> Result<ExitCode> {
             }
             Ok(ExitCode::SUCCESS)
         }
+        Command::Statusline => {
+            println!("{}", usage::statusline(std::io::stdin().lock()));
+            Ok(ExitCode::SUCCESS)
+        }
+        Command::Usage { limit } => usage_report(&Project::discover(&start)?, limit, out),
         Command::Task(cmd) => task(&Project::discover(&start)?, cmd, out),
         Command::Handoff(cmd) => handoff(&Project::discover(&start)?, cmd, out),
         Command::Export { output } => export(&Project::discover(&start)?, output, out),
@@ -588,6 +606,80 @@ fn init(start: &Path, scope: &str, out: Output) -> Result<ExitCode> {
             )
         },
     );
+    Ok(ExitCode::SUCCESS)
+}
+
+fn usage_report(project: &Project, limit: usize, out: Output) -> Result<ExitCode> {
+    let store = Store::open(&project.db_path())?;
+    let tasks = store.task_usages()?;
+    let sessions = store.session_usages(limit)?;
+    let row = |models: &rekora_core::usage::ModelUsage| {
+        let all = rekora_store::usage_total(models);
+        json!({
+            "estimate_usd": rekora_core::usage::estimate(models).usd,
+            "unpriced_models": rekora_core::usage::estimate(models).unpriced,
+            "requests": all.requests,
+            "uncached_input": all.uncached_input,
+            "cache_read": all.cache_read,
+            "cache_write": all.cache_write_short + all.cache_write_long,
+            "output": all.output,
+            "models": models,
+        })
+    };
+    let value = json!({
+        "basis": "API-equivalent list prices; subscriptions are not billed per token",
+        "prices_as_of": rekora_core::usage::PRICES_AS_OF,
+        "tasks": tasks.iter().map(|t| json!({"task": t.task, "updated_at": t.at, "sessions": t.sessions.len(), "usage": row(&t.models)})).collect::<Vec<_>>(),
+        "sessions": sessions.iter().map(|s| json!({"host": s.host, "session": s.session, "updated_at": s.at, "task": s.task, "usage": row(&s.models)})).collect::<Vec<_>>(),
+    });
+    out.emit(&value, || {
+        let line = |models: &rekora_core::usage::ModelUsage| {
+            let all = rekora_store::usage_total(models);
+            format!(
+                "{} · {} requests · in {} uncached / {} cached read / {} cache write · out {}",
+                usage::describe(models),
+                all.requests,
+                all.uncached_input,
+                all.cache_read,
+                all.cache_write_short + all.cache_write_long,
+                all.output
+            )
+        };
+        let mut text = format!(
+            "Estimated cost (API-equivalent list prices of {}; subscriptions are not billed per token)
+",
+            rekora_core::usage::PRICES_AS_OF
+        );
+        text.push_str("
+Tasks:
+");
+        if tasks.is_empty() {
+            text.push_str("  (none recorded yet: usage is attributed when exactly one task is in progress)
+");
+        }
+        for t in &tasks {
+            text.push_str(&format!("  {}  {}
+", t.task, line(&t.models)));
+        }
+        text.push_str("
+Sessions:
+");
+        if sessions.is_empty() {
+            text.push_str("  (none recorded yet: install the hooks with `rekora agent install claude-hooks --confirm`)
+");
+        }
+        for s in &sessions {
+            text.push_str(&format!(
+                "  {} {}{}  {}
+",
+                s.host,
+                &s.session[..s.session.len().min(8)],
+                s.task.as_deref().map(|t| format!(" [{t}]")).unwrap_or_default(),
+                line(&s.models)
+            ));
+        }
+        text.trim_end().to_owned()
+    });
     Ok(ExitCode::SUCCESS)
 }
 
@@ -946,14 +1038,15 @@ fn handoff(project: &Project, cmd: HandoffCommand, out: Output) -> Result<ExitCo
     let doc = store.handoff(&task_id, budget, project.git_context().0, Some(&policy))?;
     out.emit(&doc, || {
         format!(
-            "{}\n\n{}\n\n{}",
+            "{}\n\n{}\n\n{}\n{}",
             render_task(&doc.task),
             if doc.context.items.is_empty() {
                 "(no relevant memory)".to_owned()
             } else {
                 doc.context.render()
             },
-            doc.instructions
+            doc.instructions,
+            hook::effort_line(&doc.task).trim_start()
         )
     });
     Ok(ExitCode::SUCCESS)
@@ -975,6 +1068,16 @@ fn agent(start: &Path, cmd: AgentCommand, out: Output) -> Result<ExitCode> {
                         "support": h.support(),
                     })
                 })
+                .chain(agents::Family::ALL.iter().map(|f| {
+                    json!({
+                        "host": f.id(),
+                        "scope": "project",
+                        "config": null,
+                        "detected_version": null,
+                        "state": agents::state(*f, &project),
+                        "support": "implemented; three tier agents (light/standard/deep) pinned to host models; real host NOT EXECUTED",
+                    })
+                }))
                 .collect();
             out.emit(&rows, || {
                 rows.iter()
@@ -993,6 +1096,16 @@ fn agent(start: &Path, cmd: AgentCommand, out: Output) -> Result<ExitCode> {
                     .join("\n")
             });
         }
+        AgentCommand::Install(args) if agents::Family::parse(&args.host).is_some() => {
+            let family = agents::Family::parse(&args.host).context("agent family")?;
+            let plans = agents::plan_install(family, &project)?;
+            finish_files(family, &plans, &project, args.confirm, out)?;
+        }
+        AgentCommand::Uninstall(args) if agents::Family::parse(&args.host).is_some() => {
+            let family = agents::Family::parse(&args.host).context("agent family")?;
+            let plans = agents::plan_uninstall(family, &project)?;
+            finish_files(family, &plans, &project, args.confirm, out)?;
+        }
         AgentCommand::Install(args) => {
             let host: Host = args.host.parse()?;
             let plan = adapters::plan_install(host, &project, &Launch::current(args.command)?)?;
@@ -1005,6 +1118,45 @@ fn agent(start: &Path, cmd: AgentCommand, out: Output) -> Result<ExitCode> {
         }
     }
     Ok(ExitCode::SUCCESS)
+}
+
+fn finish_files(
+    family: agents::Family,
+    plans: &[agents::FilePlan],
+    project: &Project,
+    confirm: bool,
+    out: Output,
+) -> Result<()> {
+    if confirm {
+        agents::apply(plans, project)?;
+    }
+    let applied = confirm && plans.iter().any(|p| p.action != "none");
+    out.emit(
+        &json!({ "host": family.id(), "files": plans, "applied": applied }),
+        || {
+            let mut text = format!(
+                "{} {} (project scope):",
+                if confirm { "applied" } else { "dry run" },
+                family.id()
+            );
+            for plan in plans {
+                text.push_str(&format!(
+                    "
+  {} -> {}",
+                    plan.path.display(),
+                    plan.action
+                ));
+            }
+            if !confirm {
+                text.push_str(
+                    "
+Nothing was written. Re-run with --confirm to apply.",
+                );
+            }
+            text
+        },
+    );
+    Ok(())
 }
 
 fn finish_plan(plan: &adapters::Plan, project: &Project, confirm: bool, out: Output) -> Result<()> {

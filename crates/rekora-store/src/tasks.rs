@@ -65,6 +65,9 @@ pub struct Handoff {
     pub task: Task,
     /// Memory relevant to the objective, budgeted.
     pub context: ContextPack,
+    /// Suggested model tier for whoever continues (or the subagent it is
+    /// delegated to), with the recorded evidence behind it.
+    pub effort: rekora_core::effort::Suggestion,
     /// How to continue, in plain words.
     pub instructions: &'static str,
 }
@@ -293,10 +296,12 @@ impl Store {
             .take(24)
             .collect();
         let context = self.context_multi(&queries, budget, branch, policy)?;
+        let effort = rekora_core::effort::suggest(&task.objective, &task.state);
         Ok(Handoff {
             schema: HANDOFF_SCHEMA,
             task,
             context,
+            effort,
             instructions: HANDOFF_INSTRUCTIONS,
         })
     }
