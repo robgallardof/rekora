@@ -130,6 +130,9 @@ Cada instalación es una prueba en seco hasta que pasas `--confirm`. Antes se re
 | Codex | Hooks de handoff (`SessionStart`, `Stop`) | `~/.codex/hooks.json` | usuario | Igual que Claude; confírmalos en `/hooks` de Codex |
 | OpenCode 1.x | Servidor MCP | `opencode.json` | proyecto | Descubrimiento real en 1.19.4 |
 | DeepSeek Harness | Overlay MCP | `.dsh/rekora.cordis.yml` | proyecto | Runtime MCP real en 0.2.1-rc.2 |
+| Cursor, Kiro, Roo Code, Factory, Gemini CLI, Qwen Code | Servidor MCP (con `--project`) | `.cursor/mcp.json`, `.kiro/settings/mcp.json`, `.roo/mcp.json`, `.factory/mcp.json`, `.gemini/settings.json`, `.qwen/settings.json` | proyecto | Configuración probada por contrato; hosts reales NOT EXECUTED |
+| Claude Code | Barra de estado con el costo estimado | `~/.claude/settings.json` | usuario | Comando probado |
+| Claude Code, Codex, Antigravity | Subagentes por nivel `rekora-light/standard/deep` | `.claude/agents/`, `.codex/agents/`, `.agents/agents/` | proyecto | Claude Code 2.1.332: delegó en `rekora-light`, corrió en Haiku; Codex/Antigravity NOT EXECUTED |
 | Cualquier otro cliente MCP | `rekora mcp serve --stdio`, configurado a mano, más [reglas para el agente](#agentes-sin-hooks-de-rekora-antigravity-cursor-gemini-cli-) | — | — | Solo pruebas de contrato |
 
 ```bash
@@ -139,8 +142,31 @@ rekora agent install claude --confirm           # MCP para Claude Code (este pro
 rekora agent install codex --confirm            # MCP para Codex (para todo el usuario)
 rekora agent install claude-hooks --confirm     # handoff automático para Claude Code
 rekora agent install codex-hooks --confirm      # handoff automático para Codex
+rekora agent install claude-statusline --confirm  # costo estimado en la barra de estado de Claude Code
+rekora agent install claude-agents --confirm   # subagentes rekora-light/standard/deep
 rekora agent uninstall claude-hooks --confirm   # quita solo lo que agregó Rekora
 ```
+
+### Prompt de instalación para cualquier agente
+
+Pega esto en el agente que uses (Claude Code, Codex, Cursor, Gemini CLI, …), abierto en la raíz del proyecto.
+Instala Rekora para ese agente y te pregunta antes de escribir cualquier configuración:
+
+```text
+Install Rekora (https://github.com/robgallardof/rekora) for this project and for yourself:
+1. If `rekora --version` fails, clone the repository, run `cargo build --release` and put
+   target/release/rekora on my PATH.
+2. Run `rekora init` in this project's root.
+3. Run `rekora agent list` and find the entries for the agent you are. For each of `<host>`,
+   `<host>-hooks`, `<host>-agents` and `claude-statusline` that applies to you, run
+   `rekora agent install <id>` WITHOUT `--confirm`, show me the plan, and run it with `--confirm`
+   only after I say yes.
+4. If there is no `<host>-hooks` entry for you, add the "Rekora (project memory)" rules block from
+   the Rekora README to this project's rules file (AGENTS.md, GEMINI.md, …).
+5. Run `rekora doctor`, tell me what it reports, and change nothing else.
+```
+
+El prompt está en inglés porque así lo entienden igual todos los agentes; puedes pedir que te respondan en español.
 
 ### Conecta OpenCode o DeepSeek
 
@@ -150,6 +176,21 @@ opencode mcp list
 rekora agent install deepseek --confirm
 dsh web --patch .dsh/rekora.cordis.yml
 ```
+
+### Conecta Cursor, Kiro, Roo Code, Factory, Gemini CLI o Qwen Code
+
+```sh
+rekora agent install cursor --confirm    # .cursor/mcp.json
+rekora agent install kiro --confirm      # .kiro/settings/mcp.json
+rekora agent install roo --confirm       # .roo/mcp.json
+rekora agent install factory --confirm   # .factory/mcp.json
+rekora agent install gemini --confirm    # .gemini/settings.json
+rekora agent install qwen --confirm      # .qwen/settings.json
+```
+
+Cada uno escribe el archivo `mcpServers` de proyecto que documenta el host, con `--project <ruta>`, porque estos hosts
+no siempre arrancan los servidores en la carpeta del proyecto. Un archivo con comentarios (JSONC) se rechaza, no se
+reescribe. Estos hosts no tienen hooks de Rekora, así que pega también las reglas de abajo.
 
 ### Agentes sin hooks de Rekora (Antigravity, Cursor, Gemini CLI, …)
 
@@ -255,6 +296,53 @@ o Codex compactan la conversación, la tarea activa (restricciones, decisiones, 
 después, para que el resumen no la pierda. Los agentes sin estos hooks obtienen lo mismo con
 [un bloque de reglas](#agentes-sin-hooks-de-rekora-antigravity-cursor-gemini-cli-). Fuera de un
 proyecto con Rekora los hooks no hacen nada. [Detalles y límites](docs/architecture/ADAPTERS.md#lifecycle-hooks-automatic-handoff).
+
+<p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
+
+<a id="-costo-y-delegación"></a>
+## <img src="assets/readme-builder/icons/layers.svg" width="24" height="24" alt="" /> Costo y delegación
+
+**Costo estimado.** Con los hooks instalados, después de cada turno Rekora lee el uso de tokens que Claude Code
+(subagentes incluidos) o Codex ya escriben en sus registros de sesión, y carga el aumento a la única tarea en curso.
+Los precios vienen de una lista fechada (2026-11-24) de modelos de Claude, OpenAI, Gemini y DeepSeek. Cada cifra va
+marcada como **API est.**: lo que costarían esos tokens a precio de lista de la API. Una suscripción no se cobra por
+token.
+
+```bash
+rekora usage                                      # estimación por tarea y por sesión
+rekora agent install claude-statusline --confirm  # mostrarla en la barra de estado de Claude Code
+```
+
+```text
+rekora · task auth-refactor ~$1.42 · session ~$3.10 · API est. 2026-11-24
+```
+
+El instalador de la barra de estado nunca reemplaza una que ya tengas; te avisa en su lugar.
+
+**Delegación por nivel.** Rekora sugiere un nivel para cada tarea: `light`, `standard` o `deep`. Empieza en `light`
+y solo sube con evidencia registrada. Un fallo o tres o más archivos la pasan a `standard`. Dos fallos, más de ocho
+archivos o archivos en tres áreas de primer nivel la pasan a `deep`. Seis o más pendientes la dejan al menos en
+`standard`. Palabras como "security" en el objetivo la suben un nivel como máximo. El nivel y sus razones aparecen en
+el informe de inicio de sesión y en `handoff_resume`.
+
+```bash
+rekora agent install claude-agents --confirm        # .claude/agents/rekora-{light,standard,deep}.md
+rekora agent install codex-agents --confirm         # .codex/agents/rekora-*.toml
+rekora agent install antigravity-agents --confirm   # .agents/agents/rekora-*.md
+```
+
+| Nivel | Claude Code | Codex | Antigravity |
+|---|---|---|---|
+| `light` | `haiku`, esfuerzo bajo | el `*-luna` más nuevo de la lista de modelos de Codex, esfuerzo bajo | `flash` |
+| `standard` | `sonnet`, esfuerzo medio | el `*-sol` más nuevo, esfuerzo medio | `flash` |
+| `deep` | `opus`, esfuerzo alto | el `*-astra` más nuevo, esfuerzo alto | `pro` |
+
+El host impone el modelo cada vez que tu agente principal delega en uno de estos subagentes, y la sesión principal
+conserva su caché de prompt (cambiar el modelo principal la reconstruiría). Cada subagente tiene instrucciones de
+trabajar con Rekora: llamar a `context` primero, a `task_update` tras cada paso y, si la tarea es más difícil que su
+nivel, detenerse y registrar el fallo, para que la siguiente sugerencia suba. Rekora marca cada archivo que escribe.
+Nunca sobrescribe un archivo sin la marca, y la desinstalación borra solo los marcados. Investigación:
+[MODEL_DELEGATION.md](docs/research/MODEL_DELEGATION.md).
 
 <p align="center"><img src="assets/readme-builder/kit/wave.svg" alt="" width="100%" /></p>
 
@@ -368,7 +456,9 @@ Cambios: `--status`, `--note`, `--owner`, `--constraint`, `--decision`, `--file`
 |---|---|
 | `index` | Indexa de forma incremental los archivos del checkout actual (solo sintaxis). |
 | `symbols search NOMBRE [--branch B\|all] [--limit N]` | Busca declaraciones: exacta, prefijo y luego subcadena. |
-| `agent list` · `agent install\|uninstall HOST [--confirm]` | `claude`, `codex`, `opencode`, `deepseek` registran el servidor MCP; `claude-hooks`, `codex-hooks` agregan los hooks de handoff (prueba en seco por defecto). |
+| `agent list` · `agent install\|uninstall HOST [--confirm]` | `claude`, `codex`, `opencode`, `deepseek`, `cursor`, `kiro`, `roo`, `factory`, `gemini`, `qwen` registran el servidor MCP; `claude-hooks`, `codex-hooks` agregan los hooks de handoff; `claude-statusline` agrega la línea de costo; `claude-agents`, `codex-agents`, `antigravity-agents` escriben los subagentes por nivel (prueba en seco por defecto). |
+| `usage [--limit N]` | Costo estimado por tarea y por sesión del host (precios de lista de la API). |
+| `statusline` | Una línea para el `statusLine` de Claude Code: costo de la tarea activa y de la sesión. Siempre sale con 0. |
 | `hook session-start\|stop [--host NOMBRE]` | Lo que corren los hooks instalados: informar al siguiente agente o guardar dónde se quedó este. |
 | `mcp serve [--stdio \| --http --listen DIR]` | Servidor MCP por stdin/stdout (por defecto) o Streamable HTTP autenticado (`--listen`, por defecto `127.0.0.1:8080`). Ver [docs/DOCKER.md](docs/DOCKER.md). |
 | `doctor` | Revisa la instalación, el almacén y los adaptadores; nunca modifica nada. |
@@ -386,6 +476,11 @@ Cambios: `--status`, `--note`, `--owner`, `--constraint`, `--decision`, `--file`
 - El índice de código es solo de sintaxis: sin referencias, grafos de llamadas ni resolución de tipos.
 - La ocultación de secretos se basa en patrones y puede no detectar formatos raros.
 - Los conteos de tokens son estimaciones conservadoras (bytes UTF-8 / 3), no un tokenizador real.
+- Los costos son estimaciones a precio de lista de la API, de una tabla fechada; no son tu factura. Un modelo que no
+  está en la tabla se reporta sin precio, nunca se adivina. El uso solo se carga a una tarea mientras haya
+  exactamente una en curso.
+- La delegación por nivel solo se probó en vivo en Claude Code; los subagentes de Codex y Antigravity y los seis
+  hosts MCP nuevos aún no se han probado en un host real.
 - Con 100k memorias la búsqueda en caliente tiene p95 de 182 ms en un corpus sintético de peor caso, por encima
   de la meta de 100 ms ([PERFORMANCE.md](docs/architecture/PERFORMANCE.md)).
 

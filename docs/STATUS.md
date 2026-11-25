@@ -11,6 +11,23 @@
 
 Format from `planning/REKORA_IMPLEMENTATION_PLAN.md` ("Execution report template").
 
+## Usage cost, tier delegation and more hosts: docs, reinstall, live test — 2026-11-24
+
+- Code landed in `4ad7f6c` (usage ledger and `rekora usage`/`statusline`, effort tiers, `claude-agents`/
+  `codex-agents`/`antigravity-agents`, MCP adapters for Cursor, Kiro, Roo Code, Factory, Gemini CLI, Qwen Code,
+  `claude-statusline`). This entry adds the README (EN/ES): a copy-paste install prompt for any agent that asks
+  before every `--confirm`, the new hosts, a "Cost and delegation" section, command reference and limitations.
+- EXECUTED (code commit): `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`,
+  `cargo test --workspace` — 123 passed, 3 ignored.
+- EXECUTED (this machine): release binary copied to `%LOCALAPPDATA%\Rekora\bin`; `claude-hooks`, `codex-hooks`
+  re-pointed there; `claude-statusline` installed (no previous status line); `claude-agents` and `codex-agents`
+  written in this checkout (left untracked). `doctor` all ok.
+- EXECUTED (live, Claude Code 2.1.332, headless `claude -p`): the main agent delegated to `rekora-light`; the
+  subagent transcript shows `claude-haiku-5-5`. The Stop hook then recorded the session and charged it to the
+  in-progress task: `rekora usage` → ~$0.24, 6 requests. `rekora statusline` printed the task and session line.
+- NOT EXECUTED: the status line as rendered in Claude Code's UI; Codex and Antigravity tier agents in a real
+  host; the six new MCP hosts in a real host; Linux/macOS.
+
 ## Agent rules for hosts without Rekora hooks — 2026-11-24
 
 - README (EN/ES): new section "Agents without Rekora hooks (Antigravity, Cursor, Gemini CLI, …)" with a
