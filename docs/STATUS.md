@@ -11,6 +11,33 @@
 
 Format from `planning/REKORA_IMPLEMENTATION_PLAN.md` ("Execution report template").
 
+## Cut-off capture and compaction-aware hooks (MVP E1/E2) — 2026-11-24
+
+- Implements the approved MVP from `docs/research/ARCHITECTURE_RECOMMENDATION.md`:
+  - Turns are recorded per host **session** (`turn:<host>:<session>`, with checkout), merged within a
+    session, bounded to 32 rows; v0.1 per-host rows are ignored and pruned. No schema migration.
+  - New `rekora hook stop-failure` (Claude `StopFailure`): marks the session's turn as cut off with the
+    error type and keeps its previous message; `max_output_tokens` / `invalid_request` ignored.
+  - New `rekora hook pre-compact` (Claude `PreCompact`): fixed template naming only in-progress task ids.
+  - `session-start` with `source: compact` restates the single in-progress task of the branch as
+    labelled, unverified data (or lists ids). Normal briefings skip turns older than 3 days and the
+    current session's own turn, flag API-error cut-offs, and no longer fire for untracked-only trees.
+  - Per-host hook event tables (Claude: SessionStart, Stop, StopFailure, PreCompact; Codex: SessionStart,
+    Stop); `doctor` / `agent list` report an outdated install; re-install is explicit (`--confirm`).
+- Not built: session→task binding via `PostToolUse` (branch fallback used); claims are still
+  last-writer-wins (H1); usage ledger (H5).
+- EXECUTED: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`,
+  `cargo test --workspace` — 109 passed, 0 failed, 3 ignored (two opt-in real-host tests and the
+  `process_worker` helper). New: store turn test, hook unit tests, adapter upgrade test, E2E `s21`
+  (usage-limit cut-off), `s22` (stale/foreign turn and untracked-only regression), `s23` (compaction),
+  `b0_rekora_overhead_stays_within_budget`; `s20` now also runs the installed `StopFailure`/`PreCompact`
+  handlers.
+- B0 result (conservative bytes/3 estimate): tool definitions ≈ 2,687 tokens, worst-case briefing ≈ 2,093
+  tokens — **above** the pre-registered 2,000 / 1,500 limits (H12 not met by the estimate; a real tokenizer
+  count is NOT EXECUTED). The test guards against regressions only.
+- NOT EXECUTED: a live Claude Code session hitting a usage limit or compacting with these hooks; B3
+  (compaction fidelity) and every paid benchmark; Linux/macOS until CI runs.
+
 ## Agent-efficiency research — 2026-11-24
 
 - Research only: no source, dependency, crate or schema change. Seven new files in `docs/research/`

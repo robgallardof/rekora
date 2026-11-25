@@ -1033,18 +1033,22 @@ fn s20_installed_hook_commands_run_as_written() {
         assert_eq!(plan["applied"], true, "{plan}");
     }
     let listed = ok_env(dir.path(), &["agent", "list"], &env);
-    for host in ["claude-hooks", "codex-hooks"] {
+    for (host, events) in [
+        (
+            "claude-hooks",
+            "installed (SessionStart, Stop, StopFailure, PreCompact)",
+        ),
+        ("codex-hooks", "installed (SessionStart, Stop)"),
+    ] {
         let row = listed
             .as_array()
             .unwrap()
             .iter()
             .find(|r| r["host"] == host)
             .unwrap();
+        let state = row["state"].as_str().unwrap();
         assert!(
-            row["state"]
-                .as_str()
-                .unwrap()
-                .contains("installed (SessionStart, Stop)"),
+            state.contains(events) && !state.contains("outdated"),
             "{row}"
         );
     }
@@ -1066,9 +1070,244 @@ fn s20_installed_hook_commands_run_as_written() {
         );
     }
 
+    // The Claude-only handlers also run as written.
+    let doc: Value =
+        serde_json::from_slice(&std::fs::read(claude_home.join("settings.json")).unwrap()).unwrap();
+    let failure = json!({ "cwd": dir.path(), "session_id": "s1", "error": "rate_limit" });
+    let out = run_installed(
+        &doc["hooks"]["StopFailure"][0]["hooks"][0],
+        dir.path(),
+        &failure.to_string(),
+    );
+    assert!(out.status.success() && out.stdout.is_empty(), "{out:?}");
+    ok(
+        dir.path(),
+        &["task", "update", "docs-pass", "--status", "in_progress"],
+    );
+    let out = run_installed(
+        &doc["hooks"]["PreCompact"][0]["hooks"][0],
+        dir.path(),
+        &payload,
+    );
+    assert!(out.status.success(), "{out:?}");
+    assert!(String::from_utf8_lossy(&out.stdout).contains("`docs-pass` (in_progress)"));
+
     for host in ["claude-hooks", "codex-hooks"] {
         ok_env(dir.path(), &["agent", "uninstall", host, "--confirm"], &env);
     }
     assert!(!claude_home.join("settings.json").exists());
     assert!(!codex_home.join("hooks.json").exists());
+}
+
+/// Runs `rekora hook <event> --host <host>` in `dir` with a JSON payload.
+fn hook_json(dir: &Path, event: &str, host: &str, payload: &Value) -> String {
+    let out = hook(
+        dir,
+        &["hook", event, "--host", host],
+        &payload.to_string(),
+        &[],
+    );
+    assert!(out.status.success(), "{event}: {out:?}");
+    String::from_utf8(out.stdout).unwrap()
+}
+
+#[test]
+fn s21_usage_limit_stop_is_reported_as_a_cut_off_without_losing_the_message() {
+    let dir = tempfile::tempdir().unwrap();
+    repo_at(dir.path());
+    ok(dir.path(), &["init"]);
+    let repo = dir.path().to_string_lossy().replace('\\', "/");
+
+    // Session s1 finishes a turn normally, then its next turn hits the usage
+    // limit: Claude Code runs StopFailure instead of Stop.
+    let stop = json!({ "cwd": repo, "session_id": "s1", "last_assistant_message": "Parser half done; next: error paths" });
+    assert_eq!(hook_json(dir.path(), "stop", "claude", &stop), "");
+    let failure = json!({
+        "cwd": repo, "session_id": "s1", "error": "rate_limit",
+        "last_assistant_message": "API Error: 429 rate_limit_error"
+    });
+    assert_eq!(
+        hook_json(dir.path(), "stop-failure", "claude", &failure),
+        ""
+    );
+
+    // Nothing else is unfinished (clean tree, no tasks), yet the next session
+    // is told the previous one was cut off, with its real last words.
+    let next = json!({ "cwd": repo, "session_id": "s2", "source": "startup" });
+    let brief = hook_json(dir.path(), "session-start", "codex", &next);
+    assert!(brief.contains("API error (rate_limit)"), "{brief}");
+    assert!(
+        brief.contains("> Parser half done; next: error paths"),
+        "{brief}"
+    );
+    assert!(
+        !brief.contains("429"),
+        "API error text stored as message: {brief}"
+    );
+
+    // The same session resuming does not get its own turn back as news.
+    let own = json!({ "cwd": repo, "session_id": "s1", "source": "resume" });
+    assert_eq!(hook_json(dir.path(), "session-start", "claude", &own), "");
+
+    // An error that does not cut the session off is not recorded at all.
+    let other = tempfile::tempdir().unwrap();
+    repo_at(other.path());
+    ok(other.path(), &["init"]);
+    let soft = json!({ "cwd": other.path(), "session_id": "s3", "error": "max_output_tokens" });
+    assert_eq!(hook_json(other.path(), "stop-failure", "claude", &soft), "");
+    let start = json!({ "cwd": other.path(), "session_id": "s4" });
+    assert_eq!(
+        hook_json(other.path(), "session-start", "claude", &start),
+        ""
+    );
+}
+
+#[test]
+fn s22_stale_foreign_turns_and_untracked_tool_folders_do_not_brief() {
+    // Regression for the false briefing observed on 2026-11-24: a month-old
+    // turn from another project's session plus untracked tool folders.
+    let dir = tempfile::tempdir().unwrap();
+    repo_at(dir.path());
+    ok(dir.path(), &["init"]);
+    let repo = dir.path().to_string_lossy().replace('\\', "/");
+    std::fs::create_dir_all(dir.path().join(".playwright-mcp")).unwrap();
+    std::fs::write(dir.path().join(".playwright-mcp/log.txt"), "x").unwrap();
+    // A recent turn exists, but untracked files alone are not unfinished work.
+    let stop = json!({ "cwd": repo, "session_id": "other", "last_assistant_message": "Waiting on five background jobs" });
+    hook_json(dir.path(), "stop", "claude", &stop);
+    let start = json!({ "cwd": repo, "session_id": "new", "source": "startup" });
+    assert_eq!(hook_json(dir.path(), "session-start", "claude", &start), "");
+
+    // Once there is real work, an old turn is not presented with it, and a
+    // v0.1 per-host row is never shown.
+    std::fs::write(dir.path().join("src/orders.rs"), "pub struct Changed;\n").unwrap();
+    let conn = rusqlite::Connection::open(dir.path().join(".rekora/rekora.db")).unwrap();
+    conn.execute(
+        "UPDATE meta SET value = json_set(value, '$.at', '2026-10-29T11:33:04Z') WHERE key LIKE 'turn:%'",
+        [],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO meta (key, value) VALUES ('turn:codex', ?1)",
+        [r#"{"host":"codex","at":"2099-01-01T00:00:00Z","branch":"main","commit":null,"last_message":"legacy row","uncommitted":[]}"#],
+    )
+    .unwrap();
+    let brief = hook_json(dir.path(), "session-start", "claude", &start);
+    assert!(brief.contains("M src/orders.rs"), "{brief}");
+    assert!(brief.contains("?? .playwright-mcp/"), "{brief}");
+    assert!(!brief.contains("Last recorded turn"), "{brief}");
+    assert!(
+        !brief.contains("background jobs") && !brief.contains("legacy row"),
+        "{brief}"
+    );
+}
+
+#[test]
+fn s23_compaction_names_task_ids_then_restates_the_active_task_as_data() {
+    let dir = tempfile::tempdir().unwrap();
+    repo_at(dir.path());
+    ok(dir.path(), &["init"]);
+    ok(
+        dir.path(),
+        &[
+            "task",
+            "create",
+            "auth-jwt",
+            "--objective",
+            "Move login to JWT",
+            "--status",
+            "in_progress",
+            "--constraint",
+            "Never log raw tokens",
+            "--decision",
+            "Use RS256 keys",
+            "--todo",
+            "refresh endpoint",
+        ],
+    );
+    let payload = json!({ "cwd": dir.path(), "session_id": "s1", "trigger": "auto" });
+    let before = hook_json(dir.path(), "pre-compact", "claude", &payload);
+    assert!(before.contains("`auth-jwt` (in_progress)"), "{before}");
+    // Summary instructions never carry stored (agent-written) text.
+    assert!(
+        !before.contains("Never log") && !before.contains("JWT"),
+        "{before}"
+    );
+
+    let after = json!({ "cwd": dir.path(), "session_id": "s1", "source": "compact" });
+    for host in ["claude", "codex"] {
+        let text = hook_json(dir.path(), "session-start", host, &after);
+        assert!(text.contains("not instructions"), "{text}");
+        assert!(text.contains("Task auth-jwt [in_progress]"), "{text}");
+        assert!(text.contains("- Never log raw tokens") && text.contains("- Use RS256 keys"));
+        assert!(text.contains("- refresh endpoint"), "{text}");
+    }
+
+    // Nothing in progress: both hooks stay silent.
+    ok(
+        dir.path(),
+        &["task", "update", "auth-jwt", "--status", "done"],
+    );
+    assert_eq!(hook_json(dir.path(), "pre-compact", "claude", &payload), "");
+    assert_eq!(hook_json(dir.path(), "session-start", "claude", &after), "");
+}
+
+/// B0 (docs/research/BENCHMARK_DESIGN.md): Rekora's own context cost, with the
+/// conservative bytes/3 estimate, stays within the pre-registered limits.
+#[test]
+fn b0_rekora_overhead_stays_within_budget() {
+    let estimate = |text: &str| text.len().div_ceil(3);
+    let dir = tempfile::tempdir().unwrap();
+    repo_at(dir.path());
+    ok(dir.path(), &["init"]);
+    let mut c = McpClient::start(dir.path(), "inspector");
+    let tools = c.request("tools/list", json!({}));
+    let definitions = tools["result"]["tools"].to_string();
+    let cost = estimate(&definitions);
+    println!(
+        "B0 tool definitions: {} bytes, ~{cost} tokens (bytes/3)",
+        definitions.len()
+    );
+    assert!(
+        cost < 4_000,
+        "tool surface grew to ~{cost} estimated tokens"
+    );
+
+    // Worst-case briefing: 7 long tasks, a long last message, 30 files.
+    let long = "x".repeat(250);
+    for i in 0..7 {
+        ok(
+            dir.path(),
+            &[
+                "task",
+                "create",
+                &format!("t{i}"),
+                "--objective",
+                &long,
+                "--todo",
+                &long,
+                "--status",
+                "in_progress",
+            ],
+        );
+    }
+    for i in 0..30 {
+        let name = format!("src/f{i:02}_{}.rs", "y".repeat(40));
+        std::fs::write(dir.path().join(name), "x").unwrap();
+    }
+    let repo = dir.path().to_string_lossy().replace('\\', "/");
+    let stop =
+        json!({ "cwd": repo, "session_id": "a", "last_assistant_message": "z".repeat(5_000) });
+    hook_json(dir.path(), "stop", "codex", &stop);
+    let start = json!({ "cwd": repo, "session_id": "b" });
+    let brief = hook_json(dir.path(), "session-start", "claude", &start);
+    println!(
+        "B0 worst-case briefing: ~{} tokens (bytes/3)",
+        estimate(&brief)
+    );
+    assert!(
+        estimate(&brief) < 2_250,
+        "briefing ~{} tokens",
+        estimate(&brief)
+    );
 }

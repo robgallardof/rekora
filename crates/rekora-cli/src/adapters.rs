@@ -9,9 +9,10 @@
 //! | Claude Code hooks | `$CLAUDE_CONFIG_DIR/settings.json`, default `~/.claude/settings.json` (user) | `rekora hook` handlers |
 //! | Codex hooks | `$CODEX_HOME/hooks.json`, default `~/.codex/hooks.json` (user scope) | `rekora hook` handlers |
 //!
-//! The hook adapters add `SessionStart` and `Stop` handlers that run `rekora
-//! hook` (see `hook.rs`), so an agent cut off mid-task still leaves a trace for
-//! the next one. They are user-wide because the hook does nothing outside a
+//! The hook adapters add `SessionStart` and `Stop` handlers (plus `StopFailure`
+//! and `PreCompact` for Claude Code) that run `rekora hook` (see `hook.rs`), so
+//! an agent cut off mid-task still leaves a trace for the next one and the
+//! active task survives a compaction. They are user-wide because the hook does nothing outside a
 //! Rekora project; handlers of other tools in the same file are kept as they are.
 //!
 //! Safety contract (master prompt §8, test matrix R10, R24, R32):
@@ -173,7 +174,7 @@ impl Host {
                 "implemented; config contract-tested; listing checked with `codex mcp list` on 0.164.0"
             }
             Self::ClaudeHooks => {
-                "implemented; SessionStart/Stop handlers in exec form; see docs/architecture/ADAPTERS.md"
+                "implemented; SessionStart/Stop/StopFailure/PreCompact handlers in exec form; see docs/architecture/ADAPTERS.md"
             }
             Self::CodexHooks => {
                 "implemented; SessionStart/Stop handlers; review and trust them in Codex /hooks"
@@ -384,19 +385,37 @@ pub fn check(host: Host, project: &Project) -> Result<Option<String>> {
         Host::ClaudeHooks | Host::CodexHooks => {
             let doc: Value = serde_json::from_str(&text)
                 .map_err(|e| anyhow!("{} is not valid JSON: {e}", path.display()))?;
-            let events: Vec<&str> = HOOK_EVENTS
+            let installed = |event: &str| {
+                doc.pointer(&format!("/hooks/{event}"))
+                    .and_then(Value::as_array)
+                    .is_some_and(|groups| groups.iter().any(group_has_ours))
+            };
+            let events: Vec<&str> = hook_events(host)
                 .iter()
-                .filter(|(event, _)| {
-                    doc.pointer(&format!("/hooks/{event}"))
-                        .and_then(Value::as_array)
-                        .is_some_and(|groups| groups.iter().any(group_has_ours))
-                })
                 .map(|(event, _)| *event)
+                .filter(|event| installed(event))
                 .collect();
-            return Ok(Some(if events.is_empty() {
-                format!("{}: not installed", path.display())
-            } else {
+            if events.is_empty() {
+                return Ok(Some(format!("{}: not installed", path.display())));
+            }
+            // An install made by an older Rekora lacks newer events; say so
+            // instead of silently running a partial set (user-wide file: the
+            // user re-installs explicitly, rule 7).
+            let missing: Vec<&str> = hook_events(host)
+                .iter()
+                .map(|(event, _)| *event)
+                .filter(|event| !installed(event))
+                .collect();
+            return Ok(Some(if missing.is_empty() {
                 format!("{}: installed ({})", path.display(), events.join(", "))
+            } else {
+                format!(
+                    "{}: installed ({}); outdated, missing {}: run `rekora agent install {} --confirm`",
+                    path.display(),
+                    events.join(", "),
+                    missing.join(", "),
+                    host.id()
+                )
             }));
         }
         Host::OpenCode | Host::Deepseek => {
@@ -580,8 +599,27 @@ fn json_uninstall(text: &str) -> Result<(String, bool, bool)> {
 
 // --------------------------------------------------------------- hooks ----
 
-/// Host lifecycle events Rekora handles, and the `rekora hook` event for each.
-const HOOK_EVENTS: [(&str, &str); 2] = [("SessionStart", "session-start"), ("Stop", "stop")];
+/// Claude Code events Rekora handles, and the `rekora hook` event for each.
+/// `StopFailure` runs instead of `Stop` when a turn ends on an API error (usage
+/// limits), and `PreCompact` output steers the compaction summary.
+const CLAUDE_HOOK_EVENTS: [(&str, &str); 4] = [
+    ("SessionStart", "session-start"),
+    ("Stop", "stop"),
+    ("StopFailure", "stop-failure"),
+    ("PreCompact", "pre-compact"),
+];
+/// Codex events Rekora handles. Codex has no `StopFailure`, and it ignores
+/// `PreCompact` output, so only the documented, useful pair is installed.
+const CODEX_HOOK_EVENTS: [(&str, &str); 2] = [("SessionStart", "session-start"), ("Stop", "stop")];
+
+/// The events Rekora installs for a hook host.
+fn hook_events(host: Host) -> &'static [(&'static str, &'static str)] {
+    if host == Host::ClaudeHooks {
+        &CLAUDE_HOOK_EVENTS
+    } else {
+        &CODEX_HOOK_EVENTS
+    }
+}
 
 /// One `rekora hook` handler in the host's format. Claude runs the exec form
 /// (no shell). Codex takes a shell string plus a Windows override; both quote
@@ -659,7 +697,9 @@ fn group_has_ours(group: &Value) -> bool {
 /// Returns whether anything was removed.
 fn remove_our_handlers(hooks: &mut serde_json::Map<String, Value>) -> bool {
     let mut removed = false;
-    for (event, _) in HOOK_EVENTS {
+    // Every event any version may have installed, so an upgrade or uninstall
+    // also clears handlers for events no longer used.
+    for (event, _) in CLAUDE_HOOK_EVENTS {
         let Some(groups) = hooks.get_mut(event).and_then(Value::as_array_mut) else {
             continue;
         };
@@ -696,18 +736,18 @@ fn hooks_install(
         .or_insert_with(|| json!({}))
         .as_object_mut()
         .ok_or_else(|| anyhow!("`hooks` is not an object; not modified"))?;
-    for (event, _) in HOOK_EVENTS {
-        if hooks.get(event).is_some_and(|v| !v.is_array()) {
+    for (event, _) in hook_events(host) {
+        if hooks.get(*event).is_some_and(|v| !v.is_array()) {
             bail!("`hooks.{event}` is not an array; not modified");
         }
     }
     let existed = remove_our_handlers(hooks);
     let mut entry = serde_json::Map::new();
-    for (event, arg) in HOOK_EVENTS {
+    for (event, arg) in hook_events(host) {
         let handler = hook_handler(host, &launch.command, arg);
-        entry.insert(event.to_owned(), handler.clone());
+        entry.insert((*event).to_owned(), handler.clone());
         if let Some(groups) = hooks
-            .entry(event)
+            .entry(*event)
             .or_insert_with(|| json!([]))
             .as_array_mut()
         {
@@ -968,6 +1008,11 @@ mod tests {
             let (after, entry, existed) = hooks_install(host, Some(before), &launch()).unwrap();
             assert!(!existed);
             assert!(entry["SessionStart"].is_object() && entry["Stop"].is_object());
+            // Claude-only events go only to Claude: Codex has no StopFailure and
+            // ignores PreCompact output.
+            let claude = host == Host::ClaudeHooks;
+            assert_eq!(entry["StopFailure"].is_object(), claude, "{entry}");
+            assert_eq!(entry["PreCompact"].is_object(), claude, "{entry}");
             let doc: Value = serde_json::from_str(&after).unwrap();
             let orig: Value = serde_json::from_str(before).unwrap();
             assert_eq!(doc["model"], "opus");
@@ -985,6 +1030,24 @@ mod tests {
             let (removed, did, empty) = hooks_uninstall(&after).unwrap();
             assert!(did && !empty);
             assert_eq!(serde_json::from_str::<Value>(&removed).unwrap(), orig);
+        }
+    }
+
+    #[test]
+    fn reinstall_upgrades_an_old_claude_hook_set_without_duplicates() {
+        // What v0.1 wrote: SessionStart and Stop only.
+        let old = json!({ "hooks": {
+            "SessionStart": [ { "hooks": [ hook_handler(Host::ClaudeHooks, &launch().command, "session-start") ] } ],
+            "Stop": [ { "hooks": [ hook_handler(Host::ClaudeHooks, &launch().command, "stop") ] } ]
+        }})
+        .to_string();
+        let (after, _, existed) = hooks_install(Host::ClaudeHooks, Some(&old), &launch()).unwrap();
+        assert!(existed);
+        let doc: Value = serde_json::from_str(&after).unwrap();
+        for (event, arg) in CLAUDE_HOOK_EVENTS {
+            let groups = doc["hooks"][event].as_array().unwrap();
+            assert_eq!(groups.len(), 1, "{event}: {after}");
+            assert_eq!(groups[0]["hooks"][0]["args"][1], arg);
         }
     }
 

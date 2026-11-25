@@ -26,10 +26,12 @@ rekora agent install claude-hooks --confirm   # $CLAUDE_CONFIG_DIR/settings.json
 rekora agent install codex-hooks --confirm    # $CODEX_HOME/hooks.json (default ~/.codex), user-wide
 ```
 
-| Event | Runs | Effect |
-|---|---|---|
-| `Stop` (end of every turn) | `rekora hook stop --host <agent>` | Records the latest turn per host in `meta` (`turn:<host>`): branch, commit, a redacted excerpt of the last message (≤ 1500 bytes) and up to 50 `git status` lines. Prints nothing. |
-| `SessionStart` | `rekora hook session-start --host <agent>` | Prints a briefing that the host adds to the new agent's context: unfinished tasks (≤ 5), the last recorded turn and uncommitted changes. Prints nothing when there are no unfinished tasks and the tree is clean. |
+| Event | Hosts | Runs | Effect |
+|---|---|---|---|
+| `Stop` (end of every turn) | Claude, Codex | `rekora hook stop --host <agent>` | Records the turn of that host **session** in `meta` (`turn:<host>:<session>`): branch, commit, checkout, a redacted excerpt of the last message (≤ 1500 bytes) and up to 50 `git status` lines. At most 32 turn records are kept; v0.1 `turn:<host>` records are removed. Prints nothing. |
+| `StopFailure` | Claude | `rekora hook stop-failure --host claude` | Claude Code runs it **instead of** `Stop` when a turn ends on an API error (`rate_limit`, `billing_error`, …): marks the session's turn as cut off with the error type and keeps its previous message (the payload's message is the API error string). `max_output_tokens` and `invalid_request` are ignored. Prints nothing. |
+| `PreCompact` | Claude | `rekora hook pre-compact --host claude` | Output becomes instructions for the compaction summary, so it is a fixed template naming only the ids of in-progress tasks (never stored text) and asking to reload them from Rekora afterwards. Silent when nothing is in progress. |
+| `SessionStart` | Claude, Codex | `rekora hook session-start --host <agent>` | New or resumed session: a briefing with unfinished tasks (≤ 5), the latest turn of **another** session from the last 3 days (flagged when it was cut off by an API error) and uncommitted changes. Silent when there are no unfinished tasks, no recent cut-off and no tracked changes (untracked files alone do not count). With `source: compact`: restates the single in-progress task of this branch (objective, constraints, decisions, failures, remaining) as labelled, unverified data, or lists the ids when several are in progress. |
 
 - Claude uses the exec form (`command` + `args`, no shell). Codex gets a quoted POSIX `command` and a
   `commandWindows` that runs `powershell.exe -EncodedCommand`. The payload is read from stdin, never put in
@@ -38,9 +40,12 @@ rekora agent install codex-hooks --confirm    # $CODEX_HOME/hooks.json (default 
   to stderr with exit code 0, so a hook can never block or break the host.
 - Other tools' handlers in the same file (for example RepoRinse) are kept. The safety guarantees below apply
   as well: dry run, backup, byte-identical re-install, and uninstall that removes only Rekora's handlers.
+- Upgrading from v0.1: `rekora doctor` / `agent list` report `outdated, missing StopFailure, PreCompact`; re-run
+  `rekora agent install claude-hooks --confirm` (backup first; nothing is changed implicitly).
 - Limits: `Stop` fires when a turn ends. If a session dies in the middle of a turn, the record from the
-  previous turn remains, and the uncommitted changes in the briefing show what was edited after it. Whether a
-  host fires `Stop` when it hits a usage limit has NOT been verified.
+  previous turn remains, and the uncommitted changes in the briefing show what was edited after it. Claude Code documents
+  `StopFailure` for API-error stops (handled); Codex has no equivalent, and its behaviour on usage limits is
+  NOT VERIFIED. No host documents a hook on a hard crash.
 - Tested: `rekora hook` end to end with the compiled binary (`s18`, `s19`), and the installed handlers run
   exactly as written in the hooks file (`s20`: exec form, and `cmd` → `powershell -EncodedCommand` on Windows).
   A live session of either host firing the hooks: NOT EXECUTED.

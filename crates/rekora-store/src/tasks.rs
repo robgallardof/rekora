@@ -10,13 +10,18 @@
 //! [`Turn`] is the automatic counterpart of a handoff: the host's end-of-turn
 //! hook records where each agent stopped, so the next agent sees it even when
 //! the previous one was cut off (out of credits, crash) before it could write a
-//! handoff. Only the latest turn per host is kept, in `meta`, so a hook that
-//! fires after every turn never grows the database.
+//! handoff. One record per host session is kept in `meta`, at most
+//! [`TURN_MAX_ROWS`] in total, so a hook that fires after every turn stays
+//! bounded; old records stop being shown after a freshness bound.
 
 use rekora_core::task::{TaskPatch, TaskState, TaskStatus, clean_item, validate_task_id};
 use rekora_core::{CoreError, SourcePolicy};
+use std::time::Duration;
+
 use rusqlite::{OptionalExtension, TransactionBehavior, params};
 use serde::{Deserialize, Serialize};
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 
 use crate::context::ContextPack;
 use crate::{Store, StoreError, now, record_event};
@@ -68,8 +73,14 @@ pub struct Handoff {
 pub const TURN_MESSAGE_BYTES: usize = 1500;
 /// Most uncommitted paths kept per turn.
 pub const TURN_MAX_FILES: usize = 50;
+/// Most turn records kept per project (one per host session); older ones are
+/// pruned on every write so a hook that fires after every turn stays bounded.
+pub const TURN_MAX_ROWS: usize = 32;
 
 /// Where an agent was when its last turn ended (written by a host hook).
+///
+/// One record per host session: a later turn of the same session replaces it.
+/// Fields added after v0.1.0 are optional so older records still parse.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Turn {
     /// Host that reported the turn (`claude`, `codex`, ...).
@@ -84,6 +95,17 @@ pub struct Turn {
     pub last_message: Option<String>,
     /// `git status --porcelain` lines, bounded.
     pub uncommitted: Vec<String>,
+    /// Host session id from the hook payload, when the host sends one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session: Option<String>,
+    /// Checkout (worktree) the turn ran in, so linked worktrees sharing one
+    /// store can tell their turns apart.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checkout: Option<String>,
+    /// Set when the turn ended on an API error (for example `rate_limit`):
+    /// the session was most likely cut off rather than finished.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub failure: Option<String>,
 }
 
 const HANDOFF_INSTRUCTIONS: &str = "Continue this task. Respect `constraints`, do not repeat \
@@ -281,8 +303,12 @@ impl Store {
 }
 
 impl Store {
-    /// Records the end of `turn.host`'s latest turn, replacing the previous one.
-    /// The message is cut to [`TURN_MESSAGE_BYTES`] and redacted; `at` is set here.
+    /// Records the end of a host turn, replacing the previous record of the
+    /// same host session. The message is cut to [`TURN_MESSAGE_BYTES`] and
+    /// redacted; `at` is set here. A record without a message (an API-error
+    /// stop reports only the error) keeps the session's previous message, so a
+    /// failure never erases where the agent actually was. Older records beyond
+    /// [`TURN_MAX_ROWS`], and v0.1 per-host records, are pruned.
     pub fn record_turn(&mut self, turn: &Turn) -> Result<Turn, StoreError> {
         let host = turn.host.trim();
         let valid = !host.is_empty()
@@ -297,55 +323,110 @@ impl Store {
             }
             .into());
         }
+        let session = turn.session.as_deref().and_then(session_key);
+        let key = format!("turn:{host}:{}", session.as_deref().unwrap_or("-"));
         let last_message = match turn.last_message.as_deref().map(str::trim) {
             Some(text) if !text.is_empty() => {
                 Some(rekora_core::redact::redact(cut(text, TURN_MESSAGE_BYTES)).0)
             }
             _ => None,
         };
+        let tx = self
+            .conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let previous: Option<Turn> = tx
+            .query_row("SELECT value FROM meta WHERE key = ?1", [&key], |r| {
+                r.get::<_, String>(0)
+            })
+            .optional()?
+            .and_then(|v| serde_json::from_str(&v).ok());
         let stored = Turn {
             host: host.to_owned(),
             at: now(),
             branch: turn.branch.clone(),
             commit: turn.commit.clone(),
-            last_message,
+            last_message: last_message.or_else(|| previous.and_then(|p| p.last_message)),
             uncommitted: turn
                 .uncommitted
                 .iter()
                 .take(TURN_MAX_FILES)
                 .map(|l| rekora_core::redact::redact(cut(l, 512)).0)
                 .collect(),
+            session,
+            checkout: turn.checkout.as_deref().map(|c| cut(c, 1024).to_owned()),
+            failure: turn
+                .failure
+                .as_deref()
+                .map(|f| rekora_core::redact::redact(cut(f, 64)).0),
         };
-        self.conn.execute(
+        tx.execute(
             "INSERT INTO meta (key, value) VALUES (?1, ?2)
              ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-            params![
-                format!("turn:{host}"),
-                serde_json::to_string(&stored).unwrap_or_default()
-            ],
+            params![key, serde_json::to_string(&stored).unwrap_or_default()],
         )?;
+        // v0.1 kept one `turn:<host>` row per host; those carry no session and
+        // would be shown forever, so they go on the first new write.
+        tx.execute(
+            "DELETE FROM meta WHERE key LIKE 'turn:%' AND instr(substr(key, 6), ':') = 0",
+            [],
+        )?;
+        tx.execute(
+            "DELETE FROM meta WHERE key LIKE 'turn:%' AND key NOT IN (
+                 SELECT key FROM meta WHERE key LIKE 'turn:%'
+                 ORDER BY json_extract(value, '$.at') DESC LIMIT ?1)",
+            [TURN_MAX_ROWS as i64],
+        )?;
+        tx.commit()?;
         Ok(stored)
     }
 
-    /// The most recent turn recorded by any host, if any.
-    pub fn last_turn(&self) -> Result<Option<Turn>, StoreError> {
+    /// The most recent turn worth showing to a new session: recorded within
+    /// `max_age`, by a session other than `current_session`, and not a v0.1
+    /// per-host record (those have no session and no age guarantee).
+    pub fn recent_turn(
+        &self,
+        max_age: Duration,
+        current_session: Option<&str>,
+    ) -> Result<Option<Turn>, StoreError> {
+        let oldest = OffsetDateTime::now_utc() - max_age;
+        let current = current_session.and_then(session_key);
         let mut stmt = self
             .conn
-            .prepare("SELECT value FROM meta WHERE key LIKE 'turn:%'")?;
-        let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
-        let mut latest: Option<Turn> = None;
-        for value in rows {
+            .prepare("SELECT key, value FROM meta WHERE key LIKE 'turn:%'")?;
+        let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+        let mut latest: Option<(OffsetDateTime, Turn)> = None;
+        for row in rows {
+            let (key, value) = row?;
+            if !key["turn:".len()..].contains(':') {
+                continue;
+            }
             // A row this version cannot read is skipped, not fatal: it only
             // loses a hint, never memory.
-            let Ok(turn) = serde_json::from_str::<Turn>(&value?) else {
+            let Ok(turn) = serde_json::from_str::<Turn>(&value) else {
                 continue;
             };
-            if latest.as_ref().is_none_or(|l| turn.at > l.at) {
-                latest = Some(turn);
+            let Ok(at) = OffsetDateTime::parse(&turn.at, &Rfc3339) else {
+                continue;
+            };
+            if at < oldest || (current.is_some() && turn.session == current) {
+                continue;
+            }
+            if latest.as_ref().is_none_or(|(l, _)| at > *l) {
+                latest = Some((at, turn));
             }
         }
-        Ok(latest)
+        Ok(latest.map(|(_, turn)| turn))
     }
+}
+
+/// Host session ids are opaque; keep a bounded, key-safe form of them.
+fn session_key(session: &str) -> Option<String> {
+    let key: String = session
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+        .take(128)
+        .collect();
+    (!key.is_empty()).then_some(key)
 }
 
 /// Longest prefix of `text` within `max` bytes, on a char boundary.

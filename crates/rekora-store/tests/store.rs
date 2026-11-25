@@ -807,24 +807,30 @@ fn r13_import_rejects_hostile_entries_without_partial_writes() {
 }
 
 #[test]
-fn turns_keep_the_latest_per_host_bounded_and_redacted() {
+fn turns_are_per_session_bounded_redacted_and_fresh() {
+    use std::time::Duration;
     let dir = tempfile::tempdir().unwrap();
     let database = dir.path().join("rekora.db");
     let (mut store, _) = Store::init(&database).unwrap();
-    assert_eq!(store.last_turn().unwrap(), None);
+    let day = Duration::from_secs(24 * 60 * 60);
+    assert_eq!(store.recent_turn(day, None).unwrap(), None);
 
-    let turn = |host: &str, message: &str| rekora_store::Turn {
+    let turn = |host: &str, session: &str, message: Option<&str>| rekora_store::Turn {
         host: host.into(),
         at: String::new(),
         branch: Some("main".into()),
         commit: None,
-        last_message: Some(message.into()),
+        last_message: message.map(str::to_owned),
         uncommitted: (0..80).map(|i| format!(" M src/f{i}.rs")).collect(),
+        session: Some(session.into()),
+        checkout: Some("/repo".into()),
+        failure: None,
     };
     let first = store
         .record_turn(&turn(
             "codex",
-            "Wrote the parser; password=hunter2222 in .env",
+            "a",
+            Some("Wrote the parser; password=hunter2222 in .env"),
         ))
         .unwrap();
     assert!(
@@ -837,29 +843,77 @@ fn turns_keep_the_latest_per_host_bounded_and_redacted() {
     assert_eq!(first.uncommitted.len(), rekora_store::TURN_MAX_FILES);
     std::thread::sleep(std::time::Duration::from_millis(5));
     let long = "ñ".repeat(rekora_store::TURN_MESSAGE_BYTES);
-    let second = store.record_turn(&turn("claude", &long)).unwrap();
+    let second = store
+        .record_turn(&turn("claude", "b", Some(&long)))
+        .unwrap();
     assert!(second.last_message.as_deref().unwrap().len() <= rekora_store::TURN_MESSAGE_BYTES);
 
-    // Latest across hosts, surviving a reopen; one row per host, not per turn.
+    // An API-error stop of session `a` marks it cut off and keeps its message.
     std::thread::sleep(std::time::Duration::from_millis(5));
-    store
-        .record_turn(&turn("codex", "Second codex turn"))
-        .unwrap();
+    let mut failed = turn("codex", "a", None);
+    failed.failure = Some("rate_limit".into());
+    store.record_turn(&failed).unwrap();
     drop(store);
-    let store = Store::open(&database).unwrap();
-    let last = store.last_turn().unwrap().unwrap();
+    let mut store = Store::open(&database).unwrap();
+    let last = store.recent_turn(day, None).unwrap().unwrap();
     assert_eq!(last.host, "codex");
-    assert_eq!(last.last_message.as_deref(), Some("Second codex turn"));
-    let rows: i64 = rusqlite::Connection::open(&database)
-        .unwrap()
+    assert_eq!(last.failure.as_deref(), Some("rate_limit"));
+    assert!(
+        last.last_message
+            .as_deref()
+            .unwrap()
+            .starts_with("Wrote the parser")
+    );
+    // The session asking never sees its own turn.
+    assert_eq!(
+        store.recent_turn(day, Some("a")).unwrap().unwrap().host,
+        "claude"
+    );
+    // Freshness bound: nothing is recent within zero seconds.
+    assert_eq!(store.recent_turn(Duration::ZERO, None).unwrap(), None);
+
+    // A v0.1 per-host row is never shown and is pruned on the next write;
+    // rows stay bounded however many sessions report.
+    let conn = rusqlite::Connection::open(&database).unwrap();
+    conn.execute(
+        "INSERT INTO meta (key, value) VALUES ('turn:claude', ?1)",
+        [r#"{"host":"claude","at":"2099-01-01T00:00:00Z","branch":null,"commit":null,"last_message":"old","uncommitted":[]}"#],
+    )
+    .unwrap();
+    assert_ne!(
+        store
+            .recent_turn(day, None)
+            .unwrap()
+            .unwrap()
+            .last_message
+            .as_deref(),
+        Some("old")
+    );
+    for i in 0..(rekora_store::TURN_MAX_ROWS + 5) {
+        store
+            .record_turn(&turn("codex", &format!("s{i}"), Some("x")))
+            .unwrap();
+    }
+    let rows: i64 = conn
         .query_row(
             "SELECT count(*) FROM meta WHERE key LIKE 'turn:%'",
             [],
             |r| r.get(0),
         )
         .unwrap();
-    assert_eq!(rows, 2);
+    assert_eq!(rows, rekora_store::TURN_MAX_ROWS as i64);
+    let legacy: i64 = conn
+        .query_row(
+            "SELECT count(*) FROM meta WHERE key = 'turn:claude'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(legacy, 0);
 
-    let mut store = store;
-    assert!(store.record_turn(&turn("Bad Host", "x")).is_err());
+    assert!(
+        store
+            .record_turn(&turn("Bad Host", "c", Some("x")))
+            .is_err()
+    );
 }
