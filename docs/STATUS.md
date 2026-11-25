@@ -11,6 +11,19 @@
 
 Format from `planning/REKORA_IMPLEMENTATION_PLAN.md` ("Execution report template").
 
+## Agent rules for hosts without Rekora hooks — 2026-11-24
+
+- README (EN/ES): new section "Agents without Rekora hooks (Antigravity, Cursor, Gemini CLI, …)" with a
+  copy-paste rules block that makes an agent do by hand what the hooks do (task_list/handoff_resume at start
+  and after compaction, context before work, task_update after each step, remember with sources,
+  handoff_create before stopping), a hook-to-rule-to-CLI table, and the hooks table updated to the four
+  Claude events. Nothing is written into any agent configuration.
+- EXECUTED: every CLI equivalent in the block run against a temporary project (`context --task`,
+  `task create`, `task update --expected-version`, `handoff create`, `handoff resume`, `memory add --origin
+  agent`).
+- NOT EXECUTED: the rules inside a real Antigravity, Cursor or Gemini CLI session; an Antigravity hook
+  adapter (its documented `.agents/hooks.json` is not supported yet).
+
 ## Cut-off capture and compaction-aware hooks (MVP E1/E2) — 2026-11-24
 
 - Implements the approved MVP from `docs/research/ARCHITECTURE_RECOMMENDATION.md`:
